@@ -231,14 +231,17 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						if (perm & (((uint64_t)1) << introducedVertexPos)) {// x contained in S', never triggers when k = 0
 							int cutWeight = computeWeightIntroduceContained(td, introducedVertex, td[node].bag, indices, k);
 							for (int i = 0; i < degOfFreedom; i++) {
+								//if(introducedVertexContainedCounter >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+								//	cout << "SERIOUS WARNING: INTRODUCE CONTAINED NOT MIRRORED CORRECTLY!!!!";
 								vals[counter++] = td[child].values[introducedVertexContainedCounter++] + cutWeight;
+								
 								//cout << "node " << node << " executed CONTAINED vals[" << counter - 1 << "] = td[child].values[" << introducedVertexContainedCounter - 1 << "] + " << cutWeight << endl;
 							}
 						}
 						else {//x not contained in S'
 							int cutWeight = computeWeightIntroduceNotContained(td, introducedVertex, td[node].bag, indices, k);
 							for (int i = 0; i < degOfFreedom; i++) {
-								uint64_t uncontainedIndex = introducedVertexNotContainedCounter;
+								uint64_t uncontainedIndex = introducedVertexNotContainedCounter; //mirror
 								if (introducedVertexNotContainedCounter >= childTotalLength) {
 									uncontainedIndex = (totalLength) - introducedVertexNotContainedCounter++ - 1; //totalLength is childTotalLength * 2 already!
 								}
@@ -295,16 +298,29 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						uint64_t baseIndexRight = (getIndexOfSubset(indices, k + 1) - 1) * (degOfFreedom - 1);
 						for (int i = 0; i < degOfFreedom; i++) {
 							if (i == 0) {
-								vals[counter++] = td[child].values[mirror(childTotalLength, childHowManyBeforeKClassLate + baseIndexLeft)];
+								vals[counter++] = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft];
 								//cout << "node " << node << " calculated LEFT td[child].values[" << childHowManyBeforeKClassLate << " + " << baseIndexLeft << " + 0]" << endl;
 							}
 							else if (i == degOfFreedom - 1) {
-								vals[counter++] = td[child].values[mirror(childTotalLength, childHowManyBeforeKClass + baseIndexRight + i - 1)];
-								//cout << "node " << node << " calculated RIGHT td[child].values[" << childHowManyBeforeKClass << " + " << baseIndexRight << " + " << i-1 << "]" << endl;
+								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
+								if (rightIndex >= childTotalLength) {
+									rightIndex = (childTotalLength << 1) - rightIndex - 1;
+								}
+							
+								vals[counter++] = td[child].values[rightIndex];
+								//cout << "node " << node << " calculated RIGHT------ td[child].values[" << rightIndex << "]" << endl;
 							}
 							else {
-								uint32_t left = td[child].values[mirror(childTotalLength, childHowManyBeforeKClassLate + baseIndexLeft + i)];
-								uint32_t right = td[child].values[mirror(childTotalLength, childHowManyBeforeKClass + baseIndexRight + i - 1)];
+								uint32_t left = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft + i];
+								
+								//if (childHowManyBeforeKClassLate + baseIndexLeft + i >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+								//	cout << "SERIOUS WARNING: FORGET LEFT VALUE NOT MIRRORED CORRECTLY!!!!";
+								
+								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
+								if (rightIndex >= childTotalLength) {
+									rightIndex = (childTotalLength << 1) - rightIndex - 1;
+								}
+								uint32_t right = td[child].values[rightIndex];
 								if (left < right) {
 									vals[counter++] = left;
 								}
@@ -355,17 +371,19 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 								int notJ = i - j;
 
 								if (j < degFreedomLeft && notJ < degFreedomRight) {
-									uint64_t leftIndex = childHowManyBeforeKClassLeft + leftBaseIndex + j;
-									if (leftIndex >= totalLengthLeft) {
-										leftIndex = ((totalLengthLeft) << 1) - leftIndex - 1;
-									}
-									uint64_t rightIndex = childHowManyBeforeKClassRight + rightBaseIndex + notJ;
-									if (rightIndex >= totalLengthRight) {
-										rightIndex = ((totalLengthRight) << 1) - rightIndex - 1;
-									}
+									//uint64_t leftIndex = childHowManyBeforeKClassLeft + leftBaseIndex + j;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+									//if (leftIndex >= totalLengthLeft) {
+									//	leftIndex = ((totalLengthLeft) << 1) - leftIndex - 1;
+									//	cout << "JOIN: mirrored left index" << endl;
+									//}
+									//uint64_t rightIndex = childHowManyBeforeKClassRight + rightBaseIndex + notJ;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+									//if (rightIndex >= totalLengthRight) { 
+									//	rightIndex = ((totalLengthRight) << 1) - rightIndex - 1;
+									//	cout << "JOIN: mirrored right index" << endl;
+									//}
 
 
-									uint64_t candidate = (uint64_t)td[leftChild].values[leftIndex] + (uint64_t)td[rightChild].values[rightIndex];
+									uint64_t candidate = (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] + (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ];
 									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
 									if (candidate < min)
 										min = candidate; 
