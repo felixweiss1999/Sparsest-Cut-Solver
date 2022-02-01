@@ -1048,5 +1048,114 @@ uint64_t Parser::calculateNumberOfOperations(TreeDecomposition& td, TreeDecompos
 void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root, uint64_t index) {
 	vector<size_t> cut;
 	std::queue<NodeIndexPair> q;
+	q.push(NodeIndexPair(root, index));
+	while (!q.empty()) {
+		NodeIndexPair nodeIndex = q.front();
+		size_t node = nodeIndex.node;
+		uint64_t index = nodeIndex.valueIndex;
+		const int degOfFreedom = td[node].inducedSubgraphSize - td[node].bag.size() + 1;
+		if (td[node].bag.size() == td[node].inducedSubgraphSize) {//dont add any more children, just add remaining to cut
+			vector<size_t> sDash = getSdash(td[node].bag, index, degOfFreedom);
+			addUncontainedElementsToCut(cut, sDash);
+		}
+		else {
+			vector<size_t> sDash = getSdash(td[node].bag, index, degOfFreedom);
+			addUncontainedElementsToCut(cut, sDash);
 
+			if (td[node].type == 1) {
+				bool contained = false;
+				for (int i = 0; i < sDash.size(); i++) {
+					if (sDash[i] == td[node].specialVertex) {
+						contained = true;
+						break;
+					}
+				}
+				if (contained) {//need to find index where algorithm would have looked!
+					sDash[i];
+				}
+				else {
+
+				}
+			}
+			else if (td[node].type == 2) {
+
+			}
+			else if (td[node].type == 3) {
+
+			}
+			else {
+
+			}
+
+			for(auto it = td[node].children.begin(); it != td[node].children.end(); it++)
+				//q.push(NodeIndexPair(*it, ))
+		}
+
+
+		q.pop();
+	}
+}
+
+void Parser::addUncontainedElementsToCut(vector<size_t>& cut, const vector<size_t>& sDash) {
+	for (auto it = sDash.begin(); it != sDash.end(); it++) {
+		bool contained = false;
+		for (auto cutIt = cut.begin(); cutIt != cut.end(); cutIt++) {
+			if (sDash[*it] == cut[*cutIt]) {
+				contained = true;
+				break;
+			}
+		}
+		if (!contained)
+			cut.push_back(sDash[*it]);
+	}
+}
+
+vector<size_t> Parser::getSdash(const vector<size_t>& bag, uint64_t indexInTotalLength, int degOfFreedom) {
+	vector<size_t> sDash;
+	uint64_t elemsBeforeKClass = 0;
+	int choose = 0;
+	int iTable = indexInTotalLength % degOfFreedom;
+	uint64_t indexOfFirstSubsetInQuestion = indexInTotalLength - iTable;
+	uint64_t iOFSIQ
+	while (elemsBeforeKClass <= indexInTotalLength) {
+		elemsBeforeKClass += binomial(bag.size(), choose++) * degOfFreedom;
+	}
+	elemsBeforeKClass -= binomial(bag.size(), choose - 1) * degOfFreedom;
+	uint64_t s = indexInTotalLength - elemsBeforeKClass + 1;
+	int* indices = new int[choose - 1];
+	fillIndices(indices, choose - 1, s);
+	for (int i = 0; i < choose - 1; i++) {
+		sDash.push_back(bag[indices[i]]);
+	}
+	return sDash;
+}
+
+
+
+void Parser::fillIndices(int* indices, int l, int s) {
+	int* temp = indices;
+	int i = 0;
+	while (i < l) { //prefill
+		*(temp++) = i++;
+	}
+	for (int index = l - 1; index >= 0; index--) { //move index in indexes[k-1], then [k-2] .., index = #leftToConsider -> index+1 = k
+		int k = index + 1;
+		int n = indices[index] + 1; //0->1 shift
+		uint64_t bin = 1; //always one because of initialization of indices[]
+		while (true) {
+			if (bin < s) { //need to skip more
+				n++;
+				bin *= n;
+				bin /= n - k;
+				//cout << "Increased n because bin was not sufficient to cover full distance to s. Newly calculated " << n << " / (" << n - k << " ) and gotten new bin=" << bin << endl;
+			}
+			else { //skipped just once too much, or direct hit. anyway, roll back, save and move on to correct with lower index
+				indices[index] = n - 1; //0<-1 shift
+				bin *= n - k;
+				bin /= n;
+				s -= bin;
+				break;
+			}
+		}
+	}
 }

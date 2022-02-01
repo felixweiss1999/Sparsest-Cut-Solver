@@ -31,6 +31,10 @@ private:
 	uint64_t calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
 	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
 
+	void addUncontainedElementsToCut(std::vector<size_t>&, const std::vector<size_t>&);
+	std::vector<size_t> getSdash(const std::vector<size_t>&, uint64_t, int);
+	void fillIndices(int*, int, int);
+
 	atomicQueue leafs;
 	std::vector<std::atomic_flag> joinWasVisited;
 };
