@@ -28,9 +28,9 @@ private:
 	uint32_t computeWeightIntroduceContained(TreeDecomposition&, size_t, const std::vector<size_t>&, int*, int);
 	uint32_t computeWeightIntroduceNotContained(TreeDecomposition&, size_t, const std::vector<size_t>&, int*, int);
 	uint32_t computeWeightJoin(TreeDecomposition&, const std::vector<size_t>, uint64_t);
-	int calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
-	uint64_t mirror(uint64_t totalLength, uint64_t index);
-	
+	uint64_t calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
+	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
+
 	atomicQueue leafs;
 	std::vector<std::atomic_flag> joinWasVisited;
 };

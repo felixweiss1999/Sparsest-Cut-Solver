@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 1;
+	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -124,7 +124,7 @@ void Parser::print(TreeDecomposition& td, TreeDecomposition::vertex_descriptor n
 	case 4: type = "LF";
 		break;
 	}
-	cout << "] <" << td[node].bagSize << "> " << type << " values: " << tableOfNode(td, node) << endl;
+	cout << "] <" << "td[node].bagSize" << "> " << type << " values: " << tableOfNode(td, node) << endl;
 	for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 		print(td, *it);
 	}
@@ -150,6 +150,32 @@ std::string Parser::tableOfNode(TreeDecomposition& td, TreeDecomposition::vertex
 		}
 	}
 	out.append("]");
+
+	if (td[v].type == 2) {
+		out.append(" BITVECTOR: [");
+		for (int i = 0; i < totalLength; i++) {
+			if (i == totalLength - 1) {
+				out.append(to_string((*td[v].forget_bitset)[i]));
+			}
+			else {
+				out.append(to_string((*td[v].forget_bitset)[i]) + ", ");
+			}
+		}
+		out.append("]");
+	}
+	else if (td[v].type == 3) {
+		out.append(" JVECTOR: [");
+		for (int i = 0; i < totalLength; i++) {
+			if (i == totalLength - 1) {
+				out.append(to_string(td[v].join_j[i]));
+			}
+			else {
+				out.append(to_string(td[v].join_j[i]) + ", ");
+			}
+		}
+		out.append("]");
+	}
+
 	return out;
 }
 void Parser::exportDimax(TreeDecomposition& td, std::ostream& out) {
@@ -231,8 +257,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						if (perm & (((uint64_t)1) << introducedVertexPos)) {// x contained in S', never triggers when k = 0
 							int cutWeight = computeWeightIntroduceContained(td, introducedVertex, td[node].bag, indices, k);
 							for (int i = 0; i < degOfFreedom; i++) {
-								//if(introducedVertexContainedCounter >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-								//	cout << "SERIOUS WARNING: INTRODUCE CONTAINED NOT MIRRORED CORRECTLY!!!!";
 								vals[counter++] = td[child].values[introducedVertexContainedCounter++] + cutWeight;
 								
 								//cout << "node " << node << " executed CONTAINED vals[" << counter - 1 << "] = td[child].values[" << introducedVertexContainedCounter - 1 << "] + " << cutWeight << endl;
@@ -270,6 +294,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				size_t forgottenVertex = td[node].specialVertex;
 				size_t child = td[node].children[0];
 
+				td[node].forget_bitset = new boost::dynamic_bitset<uint64_t>(totalLength);
+
 				int forgottenVertexPos = 0;
 				while (forgottenVertexPos < bagSize) {
 					if (forgottenVertex < td[node].bag[forgottenVertexPos])
@@ -306,26 +332,24 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 								if (rightIndex >= childTotalLength) {
 									rightIndex = (childTotalLength << 1) - rightIndex - 1;
 								}
-							
+								(*td[node].forget_bitset)[counter] = true;
 								vals[counter++] = td[child].values[rightIndex];
 								//cout << "node " << node << " calculated RIGHT------ td[child].values[" << rightIndex << "]" << endl;
 							}
 							else {
 								uint32_t left = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft + i];
-								
-								//if (childHowManyBeforeKClassLate + baseIndexLeft + i >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-								//	cout << "SERIOUS WARNING: FORGET LEFT VALUE NOT MIRRORED CORRECTLY!!!!";
-								
+							
 								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
 								if (rightIndex >= childTotalLength) {
 									rightIndex = (childTotalLength << 1) - rightIndex - 1;
 								}
 								uint32_t right = td[child].values[rightIndex];
-								if (left < right) {
-									vals[counter++] = left;
+								if (right < left) {
+									(*td[node].forget_bitset)[counter] = true;
+									vals[counter++] = right;
 								}
 								else {
-									vals[counter++] = right;
+									vals[counter++] = left;
 								}
 							}
 						}
@@ -339,7 +363,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
 					}
 					childHowManyBeforeKClassLate += binomial(bagSize + 1, k) * (degOfFreedom - 1);
-					//childHowManyBeforeKClass += binomial(bagSize + 1, k + 1 ) * (degOfFreedom - 1);
 				}
 				delete[] indices;
 			}
@@ -352,6 +375,9 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				uint64_t totalLengthRight = ((uint64_t)1 << (bagSize - 1)) * degFreedomRight;
 				uint64_t counter = 0;
 				int* indices = new int[bagSize];
+				
+				td[node].join_j = new uint16_t[totalLength];
+
 				uint64_t childHowManyBeforeKClassLeft = 0;
 				uint64_t childHowManyBeforeKClassRight = 0;
 				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
@@ -371,22 +397,13 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 								int notJ = i - j;
 
 								if (j < degFreedomLeft && notJ < degFreedomRight) {
-									//uint64_t leftIndex = childHowManyBeforeKClassLeft + leftBaseIndex + j;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-									//if (leftIndex >= totalLengthLeft) {
-									//	leftIndex = ((totalLengthLeft) << 1) - leftIndex - 1;
-									//	cout << "JOIN: mirrored left index" << endl;
-									//}
-									//uint64_t rightIndex = childHowManyBeforeKClassRight + rightBaseIndex + notJ;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-									//if (rightIndex >= totalLengthRight) { 
-									//	rightIndex = ((totalLengthRight) << 1) - rightIndex - 1;
-									//	cout << "JOIN: mirrored right index" << endl;
-									//}
-
-
 									uint64_t candidate = (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] + (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ];
 									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
-									if (candidate < min)
-										min = candidate; 
+									if (candidate < min) {
+										min = candidate;
+										td[node].join_j[counter] = j;
+									}
+										
 								}
 							}
 							vals[counter++] = min - cutWeight;
@@ -410,15 +427,14 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			}
 			else {//leaf
 				vals[0] = 0; 
-				//vals[1] = 0;
 			}
 finishedCalc:
-			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
+			/*for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 				delete[] td[*it].values;
-			}
+			}*/
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
-				cout << "Computed weight = " << calculateCutWeight(td, node) << endl;
+				retraceCut(td, root, calculateCutWeight(td, node));
 				return;
 			}
 			node = td[node].parent;
@@ -695,7 +711,7 @@ void Parser::perm2Indices(int* indices, uint64_t perm, int k) {
 }
 
 
-int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
+uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
 	const int bagSize = td[root].bag.size();
 	const int Y = td[root].inducedSubgraphSize;
 	const int degOfFreedom = Y - bagSize + 1;
@@ -703,6 +719,7 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 	uint32_t* vals = td[root].values;
 	int minWeight = 0;
 	uint64_t counter = 0;
+	uint64_t counterOfMin = 0;
 	double min = DBL_MAX;
 	for (int k = 0; k < bagSize + 1; k++) {
 		uint64_t maxSubsets = binomial(bagSize, k);
@@ -718,6 +735,7 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 				if (candidate < min) {
 					min = candidate;
 					minWeight = vals[counter - 1];
+					counterOfMin = counter - 1;
 				}
 			}
 			if (counter >= totalLength)
@@ -725,9 +743,9 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 		}
 	}
 finish:
-	cout << "the min was " << min << endl;
+	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << endl;
 
-	return minWeight;
+	return counterOfMin;
 }
 uint32_t Parser::computeWeightIntroduceContained(TreeDecomposition& td, size_t introducedVertex, const vector<size_t>& bag, int* indices, int lengthOfSDash) {
 	uint32_t weight = 0;
@@ -1027,11 +1045,8 @@ uint64_t Parser::calculateNumberOfOperations(TreeDecomposition& td, TreeDecompos
 	return weight;
 }
 
-uint64_t Parser::mirror(uint64_t totalLength, uint64_t index) {
-	if (index < totalLength) {
-		return index;
-	}
-	else {
-		return (((totalLength) << 1) - index - 1);
-	}
+void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root, uint64_t index) {
+	vector<size_t> cut;
+	std::queue<NodeIndexPair> q;
+
 }
