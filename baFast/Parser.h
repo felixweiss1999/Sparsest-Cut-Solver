@@ -32,8 +32,9 @@ private:
 	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
 
 	void addUncontainedElementsToCut(std::vector<size_t>&, const std::vector<size_t>&);
-	std::vector<size_t> getSdash(const std::vector<size_t>&, uint64_t, int);
+	std::vector<size_t> getSdash(const std::vector<size_t>&, uint64_t, int, int*);
 	void fillIndices(int*, int, int);
+	uint64_t getSubsetsBeforeKClass(uint64_t, int);
 
 	atomicQueue leafs;
 	std::vector<std::atomic_flag> joinWasVisited;
