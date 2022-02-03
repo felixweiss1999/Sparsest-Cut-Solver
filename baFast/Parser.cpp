@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 3;
+	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -393,9 +393,14 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						uint64_t rightBaseIndex = (baseIndex - 1) * degFreedomRight;
 						for (int i = 0; i < degOfFreedom; i++) {
 							uint64_t min = UINT64_MAX;
-							for (int j = 0; j <= i; j++) {
+							int j_lowerBound = i - degFreedomRight + 1;
+							if (j_lowerBound < 0)
+								j_lowerBound = 0;
+							int j_upperBound = degFreedomLeft - 1;
+							if (j_upperBound > i)
+								j_upperBound = i;
+							for (int j = j_lowerBound; j <= j_upperBound; j++) {
 								int notJ = i - j;
-
 								if (j < degFreedomLeft && notJ < degFreedomRight) {
 									uint64_t candidate = (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] + (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ];
 									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
