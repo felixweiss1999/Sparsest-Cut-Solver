@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 3;
+	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
