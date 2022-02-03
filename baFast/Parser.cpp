@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	(*td)[graph_bundle].root = 1;
+	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	//(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -1220,10 +1220,7 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 				//q.push(NodeIndexPair(*it, ))
 			}
-				
 		}
-
-
 		q.pop();
 	}
 	cout << "Finished computing cut [";

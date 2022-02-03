@@ -21,7 +21,7 @@ int main()
     try {
 
         std::ifstream file;
-        file.open("validateCut.td");
+        file.open("selfMadeInstances/instance03.td");
         auto start_time = std::chrono::high_resolution_clock::now();
         TreeDecomposition td = *p.parse(file);
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -32,7 +32,7 @@ int main()
         writeFile.open("test.td");
         p.exportDimax(td, writeFile);
         writeFile.close();*/
-        file.open("validateCut.gr");
+        file.open("selfMadeInstances/instance03.gr");
         p.fillAdjacencyMatrix(td, file);
         file.close();
         
