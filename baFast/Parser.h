@@ -19,7 +19,6 @@ private:
 	size_t calculateOptimalRoot(TreeDecomposition&);
 	std::vector<size_t>& removeElementFromBag(std::vector<size_t>&, size_t);
 	std::queue<size_t> split(TreeDecomposition&, TreeDecomposition::vertex_descriptor, int);
-	std::queue<size_t> HOLLOWsplit(TreeDecomposition&, TreeDecomposition::vertex_descriptor, int);
 	void traverseUpThread(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
 	uint64_t binomial(int, int);
 	std::string tableOfNode(TreeDecomposition&, TreeDecomposition::vertex_descriptor);

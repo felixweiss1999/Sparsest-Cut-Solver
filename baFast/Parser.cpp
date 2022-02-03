@@ -1229,7 +1229,6 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 	cout << "]" << endl;
 }
 
-
 void Parser::addUncontainedElementsToCut(vector<size_t>& cut, const vector<size_t>& sDash) {
 	for (auto it = sDash.begin(); it != sDash.end(); it++) {
 		bool contained = false;
@@ -1265,8 +1264,6 @@ vector<size_t> Parser::getSdash(const vector<size_t>& bag, uint64_t indexInTotal
 	return sDash;
 }
 
-
-
 void Parser::fillIndices(int* indices, int l, int s) {
 	int* temp = indices;
 	int i = 0;
@@ -1294,8 +1291,6 @@ void Parser::fillIndices(int* indices, int l, int s) {
 		}
 	}
 }
-
-
 uint64_t Parser::getSubsetsBeforeKClass(uint64_t normalizedIndex, int bagSize) {
 	uint64_t elemsBeforeKClass = 0;
 	int choose = 0; //make use of integer division
