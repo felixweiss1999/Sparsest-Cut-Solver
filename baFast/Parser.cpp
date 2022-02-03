@@ -65,7 +65,7 @@ TreeDecomposition* Parser::parse(istream& in) {
 	//ensure all nodes are unvisited
 	
 	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 1;
+	//(*td)[graph_bundle].root = 3;
 	makeNice(*td);
 	
 	return td;
@@ -124,7 +124,7 @@ void Parser::print(TreeDecomposition& td, TreeDecomposition::vertex_descriptor n
 	case 4: type = "LF";
 		break;
 	}
-	cout << "] <" << td[node].bagSize << "> " << type << " values: " << tableOfNode(td, node) << endl;
+	cout << "] <" << "" << "> " << type << " values: " << tableOfNode(td, node) << endl;
 	for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 		print(td, *it);
 	}
@@ -150,6 +150,32 @@ std::string Parser::tableOfNode(TreeDecomposition& td, TreeDecomposition::vertex
 		}
 	}
 	out.append("]");
+
+	if (td[v].type == 2) {
+		out.append(" BITVECTOR: [");
+		for (int i = 0; i < totalLength; i++) {
+			if (i == totalLength - 1) {
+				out.append(to_string((*td[v].forget_bitset)[i]));
+			}
+			else {
+				out.append(to_string((*td[v].forget_bitset)[i]) + ", ");
+			}
+		}
+		out.append("]");
+	}
+	else if (td[v].type == 3) {
+		out.append(" JVECTOR: [");
+		for (int i = 0; i < totalLength; i++) {
+			if (i == totalLength - 1) {
+				out.append(to_string(td[v].join_j[i]));
+			}
+			else {
+				out.append(to_string(td[v].join_j[i]) + ", ");
+			}
+		}
+		out.append("]");
+	}
+
 	return out;
 }
 void Parser::exportDimax(TreeDecomposition& td, std::ostream& out) {
@@ -231,8 +257,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						if (perm & (((uint64_t)1) << introducedVertexPos)) {// x contained in S', never triggers when k = 0
 							int cutWeight = computeWeightIntroduceContained(td, introducedVertex, td[node].bag, indices, k);
 							for (int i = 0; i < degOfFreedom; i++) {
-								//if(introducedVertexContainedCounter >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-								//	cout << "SERIOUS WARNING: INTRODUCE CONTAINED NOT MIRRORED CORRECTLY!!!!";
 								vals[counter++] = td[child].values[introducedVertexContainedCounter++] + cutWeight;
 								
 								//cout << "node " << node << " executed CONTAINED vals[" << counter - 1 << "] = td[child].values[" << introducedVertexContainedCounter - 1 << "] + " << cutWeight << endl;
@@ -270,6 +294,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				size_t forgottenVertex = td[node].specialVertex;
 				size_t child = td[node].children[0];
 
+				td[node].forget_bitset = new boost::dynamic_bitset<uint64_t>(totalLength);
+
 				int forgottenVertexPos = 0;
 				while (forgottenVertexPos < bagSize) {
 					if (forgottenVertex < td[node].bag[forgottenVertexPos])
@@ -306,26 +332,24 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 								if (rightIndex >= childTotalLength) {
 									rightIndex = (childTotalLength << 1) - rightIndex - 1;
 								}
-							
+								(*td[node].forget_bitset)[counter] = true;
 								vals[counter++] = td[child].values[rightIndex];
 								//cout << "node " << node << " calculated RIGHT------ td[child].values[" << rightIndex << "]" << endl;
 							}
 							else {
 								uint32_t left = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft + i];
-								
-								//if (childHowManyBeforeKClassLate + baseIndexLeft + i >= childTotalLength) //REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-								//	cout << "SERIOUS WARNING: FORGET LEFT VALUE NOT MIRRORED CORRECTLY!!!!";
-								
+							
 								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
 								if (rightIndex >= childTotalLength) {
 									rightIndex = (childTotalLength << 1) - rightIndex - 1;
 								}
 								uint32_t right = td[child].values[rightIndex];
-								if (left < right) {
-									vals[counter++] = left;
+								if (right < left) {
+									(*td[node].forget_bitset)[counter] = true;
+									vals[counter++] = right;
 								}
 								else {
-									vals[counter++] = right;
+									vals[counter++] = left;
 								}
 							}
 						}
@@ -339,7 +363,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
 					}
 					childHowManyBeforeKClassLate += binomial(bagSize + 1, k) * (degOfFreedom - 1);
-					//childHowManyBeforeKClass += binomial(bagSize + 1, k + 1 ) * (degOfFreedom - 1);
 				}
 				delete[] indices;
 			}
@@ -352,6 +375,9 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				uint64_t totalLengthRight = ((uint64_t)1 << (bagSize - 1)) * degFreedomRight;
 				uint64_t counter = 0;
 				int* indices = new int[bagSize];
+				
+				td[node].join_j = new uint16_t[totalLength];
+
 				uint64_t childHowManyBeforeKClassLeft = 0;
 				uint64_t childHowManyBeforeKClassRight = 0;
 				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
@@ -371,22 +397,13 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 								int notJ = i - j;
 
 								if (j < degFreedomLeft && notJ < degFreedomRight) {
-									//uint64_t leftIndex = childHowManyBeforeKClassLeft + leftBaseIndex + j;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-									//if (leftIndex >= totalLengthLeft) {
-									//	leftIndex = ((totalLengthLeft) << 1) - leftIndex - 1;
-									//	cout << "JOIN: mirrored left index" << endl;
-									//}
-									//uint64_t rightIndex = childHowManyBeforeKClassRight + rightBaseIndex + notJ;//REMOVE FOR MORE PERFORMANCE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-									//if (rightIndex >= totalLengthRight) { 
-									//	rightIndex = ((totalLengthRight) << 1) - rightIndex - 1;
-									//	cout << "JOIN: mirrored right index" << endl;
-									//}
-
-
 									uint64_t candidate = (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] + (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ];
 									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
-									if (candidate < min)
-										min = candidate; 
+									if (candidate < min) {
+										min = candidate;
+										td[node].join_j[counter] = j;
+									}
+										
 								}
 							}
 							vals[counter++] = min - cutWeight;
@@ -410,7 +427,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			}
 			else {//leaf
 				vals[0] = 0; 
-				//vals[1] = 0;
 			}
 finishedCalc:
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
@@ -418,7 +434,8 @@ finishedCalc:
 			}
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
-				cout << "Computed weight = " << calculateCutWeight(td, node) << endl;
+				retraceCut(td, root, calculateCutWeight(td, node));
+				//retraceCut(td, 11, 22);
 				return;
 			}
 			node = td[node].parent;
@@ -695,7 +712,7 @@ void Parser::perm2Indices(int* indices, uint64_t perm, int k) {
 }
 
 
-int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
+uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
 	const int bagSize = td[root].bag.size();
 	const int Y = td[root].inducedSubgraphSize;
 	const int degOfFreedom = Y - bagSize + 1;
@@ -703,6 +720,7 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 	uint32_t* vals = td[root].values;
 	int minWeight = 0;
 	uint64_t counter = 0;
+	uint64_t counterOfMin = 0;
 	double min = DBL_MAX;
 	for (int k = 0; k < bagSize + 1; k++) {
 		uint64_t maxSubsets = binomial(bagSize, k);
@@ -718,6 +736,7 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 				if (candidate < min) {
 					min = candidate;
 					minWeight = vals[counter - 1];
+					counterOfMin = counter - 1;
 				}
 			}
 			if (counter >= totalLength)
@@ -725,9 +744,9 @@ int Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_
 		}
 	}
 finish:
-	cout << "the min was " << min << endl;
+	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << " selected index in top table: " << counterOfMin << endl;
 
-	return minWeight;
+	return counterOfMin;
 }
 uint32_t Parser::computeWeightIntroduceContained(TreeDecomposition& td, size_t introducedVertex, const vector<size_t>& bag, int* indices, int lengthOfSDash) {
 	uint32_t weight = 0;
@@ -1027,11 +1046,260 @@ uint64_t Parser::calculateNumberOfOperations(TreeDecomposition& td, TreeDecompos
 	return weight;
 }
 
-uint64_t Parser::mirror(uint64_t totalLength, uint64_t index) {
-	if (index < totalLength) {
-		return index;
+void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root, uint64_t index) {
+	vector<size_t> cut;
+	std::queue<NodeIndexPair> q;
+	q.push(NodeIndexPair(root, index));
+	while (!q.empty()) {
+		NodeIndexPair nodeIndex = q.front();
+		size_t node = nodeIndex.node;
+		uint64_t index = nodeIndex.valueIndex;
+		const int degOfFreedom = td[node].inducedSubgraphSize - td[node].bag.size() + 1;
+		if (td[node].bag.size() == td[node].inducedSubgraphSize) {//dont add any more children, just add remaining to cut
+			int* indices = new int[td[node].bag.size() + 1];
+			vector<size_t> sDash = getSdash(td[node].bag, index, degOfFreedom, indices);
+			addUncontainedElementsToCut(cut, sDash);
+			delete[] indices;
+		}
+		else {
+			int* indices = new int[td[node].bag.size() + 1]; //must suffice even for forget nodes
+			vector<size_t> sDash = getSdash(td[node].bag, index, degOfFreedom, indices); //ALSO FILLS IN INDICES
+			addUncontainedElementsToCut(cut, sDash);
+
+			if (td[node].type == 1) {
+				size_t child = td[node].children[0];
+				bool contained = false;
+				auto it = sDash.begin();
+				while(it != sDash.end()) {
+					if (*it == td[node].specialVertex) { 
+						contained = true;
+						break;
+					}
+					it++;
+				}
+				if (contained) {//need to find index where algorithm would have looked!
+					int iTable = index % degOfFreedom;
+					//auto end = sDash.erase(it); // make new indices
+					for (int i = 0; i < sDash.size(); i++) {
+						if (td[node].bag[indices[i]] > td[node].specialVertex) {
+							indices[i - 1] = indices[i] - 1;
+						}
+					}
+					uint64_t childIndexInKClass = (getIndexOfSubset(indices, sDash.size() - 1) - 1)*degOfFreedom;
+					uint64_t subsetsBeforeKClass = 0;
+					for (int k = 0; k < sDash.size() - 1; k++) { //sDash.size() == child.bagsize
+						subsetsBeforeKClass += binomial(td[child].bag.size(), k);
+					}
+					subsetsBeforeKClass *= degOfFreedom;
+					//cout << "INTRODUCE: Pushing child " << child << " with childIndex " << subsetsBeforeKClass + childIndexInKClass + iTable << endl;
+					q.push(NodeIndexPair(child, subsetsBeforeKClass + childIndexInKClass + iTable)); //iTable in child stays the same
+				}
+				else {
+					int iTable = index % degOfFreedom;
+					for (int i = 0; i < sDash.size(); i++) {
+						if (td[node].bag[indices[i]] > td[node].specialVertex) {
+							indices[i]--;
+						}
+					}
+					uint64_t childIndexInKClass = (getIndexOfSubset(indices, sDash.size()) - 1) * degOfFreedom;
+					uint64_t subsetsBeforeKClass = 0;
+					for (int k = 0; k < sDash.size(); k++) { //sDash.size() == child.bagsize
+						subsetsBeforeKClass += binomial(td[child].bag.size(), k);
+					}
+					subsetsBeforeKClass *= degOfFreedom;
+					//cout << "INTRODUCE: Pushing child " << child << " with childIndex " << subsetsBeforeKClass + childIndexInKClass + iTable << endl;
+					q.push(NodeIndexPair(child, subsetsBeforeKClass + childIndexInKClass + iTable));
+				}
+				delete[] indices;
+			}
+			else if (td[node].type == 2) {
+				//first: find out if left or right was taken, then calculate child index accordingly
+				size_t child = td[node].children[0];
+				uint64_t nodeLength = ((uint64_t)1 << (td[node].bag.size() - 1)) * degOfFreedom;
+				size_t forgottenVertex = td[node].specialVertex;
+
+				int forgottenVertexPos = 0;
+				while (forgottenVertexPos < td[node].bag.size()) {
+					if (forgottenVertex < td[node].bag[forgottenVertexPos])
+						break;
+					forgottenVertexPos++;
+				}
+
+				bool leftOrRight;
+				if (index >= nodeLength) {
+					leftOrRight = !(*td[node].forget_bitset)[(nodeLength << 1) - index - 1]; //mirror
+				}
+				else {
+					leftOrRight = (*td[node].forget_bitset)[index];
+				}
+
+				if (leftOrRight) { // right was taken
+					int iTable = (index % degOfFreedom) - 1; //is one less extra within degOfFreedom space!
+					int i = sDash.size() - 1;
+					for (; i >= 0; i--) {
+						if (indices[i] >= forgottenVertexPos) {
+							indices[i + 1] = indices[i] + 1;
+						}
+						else { //i so low that 
+
+							break;
+						}
+					}
+					indices[i + 1] = forgottenVertexPos;
+
+					uint64_t childIndexInKClass = (getIndexOfSubset(indices, sDash.size() + 1) - 1) * (uint64_t)(degOfFreedom - 1);
+
+					uint64_t subsetsBeforeKClass = 0;
+					for (int k = 0; k < sDash.size() + 1; k++) {
+						subsetsBeforeKClass += binomial(td[child].bag.size(), k);
+					}
+					subsetsBeforeKClass *= (uint64_t)(degOfFreedom - 1);
+					//cout << "FORGET: Pushing child " << child << " with childIndex " << subsetsBeforeKClass << " + " << childIndexInKClass << " + " << iTable << endl;
+					q.push(NodeIndexPair(child, subsetsBeforeKClass + childIndexInKClass + iTable));
+					
+				}
+				else { //left was taken
+					int iTable = index % degOfFreedom;
+					//need to add 1 to every index that points to >= index of forgotten Vertex
+					for (int i = 0; i < sDash.size(); i++) {
+						if (indices[i] >= forgottenVertexPos) {
+							indices[i] += 1;
+						}
+					}
+
+					uint64_t childIndexInKClass = (getIndexOfSubset(indices, sDash.size()) - 1) * (uint64_t)(degOfFreedom - 1);
+					uint64_t subsetsBeforeKClass = 0;
+					for (int k = 0; k < sDash.size(); k++) { 
+						subsetsBeforeKClass += binomial(td[child].bag.size(), k); 
+					}
+					subsetsBeforeKClass *= (uint64_t)(degOfFreedom - 1);
+					//cout << "FORGET: Pushing child " << child << " with childIndex " << subsetsBeforeKClass + childIndexInKClass + iTable << endl;
+					q.push(NodeIndexPair(child, subsetsBeforeKClass + childIndexInKClass + iTable));
+				}
+			}
+			else if (td[node].type == 3) {
+				uint64_t nodeLength = ((uint64_t)1 << (td[node].bag.size() - 1)) * degOfFreedom;
+				size_t leftChild = td[node].children[0];
+				size_t rightChild = td[node].children[1];
+				int degFreedomLeft = td[leftChild].inducedSubgraphSize - td[node].bag.size() + 1;
+				int degFreedomRight = td[rightChild].inducedSubgraphSize - td[node].bag.size() + 1;
+				int i = index % degOfFreedom;
+				int j;
+				if (index >= nodeLength) {
+					//1. calculate range of possible j's, then determine mirroredJ's position in it. then select its inverse respective to that range and use that as the real j.
+					int mirroredIndex = (nodeLength << 1) - index - 1;
+					int mirroredJ = td[node].join_j[(nodeLength << 1) - index - 1]; //mirror
+					int mirroredI = mirroredIndex % degOfFreedom; // same i for mirrored and index position
+					int minMirroredJ = max(0, mirroredI - degFreedomRight + 1);
+					int distanceFromLeft = mirroredJ - minMirroredJ;
+					int maxj = min(i, degFreedomLeft - 1);
+					j = maxj - distanceFromLeft;
+					
+				}
+				else {
+					j = td[node].join_j[index];
+				}
+				//first find out j, then calculate both child indices
+				
+				int notJ = i - j;
+				//indices already configured, only find out starting point and add respective j and notJ to push them.
+				uint64_t leftIndexUpToSubset = (index / degOfFreedom) * degFreedomLeft;
+				uint64_t rightIndexUpToSubset = (index / degOfFreedom) * degFreedomRight;
+				//cout << "JOIN: Pushing leftChild " << leftChild << " with childIndex " << leftIndexUpToSubset << " + " << j << endl;
+				//cout << "JOIN: Pushing rightChild " << rightChild << " with childIndex " << rightIndexUpToSubset << " + " << notJ << endl;
+				q.push(NodeIndexPair(leftChild, leftIndexUpToSubset + j));
+				q.push(NodeIndexPair(rightChild, rightIndexUpToSubset + notJ));
+			}
+			//leaves can't occur because they always will be the end and thus never reach this if else
+
+			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
+				//q.push(NodeIndexPair(*it, ))
+			}
+				
+		}
+
+
+		q.pop();
 	}
-	else {
-		return (((totalLength) << 1) - index - 1);
+	cout << "Finished computing cut [";
+	for (auto it = cut.begin(); it != cut.end(); it++)
+		cout << *it << ", ";
+	cout << "]" << endl;
+}
+
+
+void Parser::addUncontainedElementsToCut(vector<size_t>& cut, const vector<size_t>& sDash) {
+	for (auto it = sDash.begin(); it != sDash.end(); it++) {
+		bool contained = false;
+		for (auto cutIt = cut.begin(); cutIt != cut.end(); cutIt++) {
+			if (*it == *cutIt) {
+				contained = true;
+				break;
+			}
+		}
+		if (!contained) {
+			cut.push_back(*it);
+		}
 	}
+}
+
+vector<size_t> Parser::getSdash(const vector<size_t>& bag, uint64_t indexInTotalLength, int degOfFreedom, int* indices) {
+	vector<size_t> sDash;
+	uint64_t elemsBeforeKClass = 0;
+	int choose = 0;
+	uint64_t totalIndexNormalized = indexInTotalLength / degOfFreedom; //make use of integer division
+	while (elemsBeforeKClass <= totalIndexNormalized) {
+		elemsBeforeKClass += binomial(bag.size(), choose++);
+	}
+	elemsBeforeKClass -= binomial(bag.size(), choose - 1);
+	//elemsBeforeKClass *= degOfFreedom;
+
+	uint64_t s = totalIndexNormalized - elemsBeforeKClass + 1;
+	
+	fillIndices(indices, choose - 1, s);
+	for (int i = 0; i < choose - 1; i++) {
+		sDash.push_back(bag[indices[i]]);
+	}
+	return sDash;
+}
+
+
+
+void Parser::fillIndices(int* indices, int l, int s) {
+	int* temp = indices;
+	int i = 0;
+	while (i < l) { //prefill
+		*(temp++) = i++;
+	}
+	for (int index = l - 1; index >= 0; index--) { //move index in indexes[k-1], then [k-2] .., index = #leftToConsider -> index+1 = k
+		int k = index + 1;
+		int n = indices[index] + 1; //0->1 shift
+		uint64_t bin = 1; //always one because of initialization of indices[]
+		while (true) {
+			if (bin < s) { //need to skip more
+				n++;
+				bin *= n;
+				bin /= n - k;
+				//cout << "Increased n because bin was not sufficient to cover full distance to s. Newly calculated " << n << " / (" << n - k << " ) and gotten new bin=" << bin << endl;
+			}
+			else { //skipped just once too much, or direct hit. anyway, roll back, save and move on to correct with lower index
+				indices[index] = n - 1; //0<-1 shift
+				bin *= n - k;
+				bin /= n;
+				s -= bin;
+				break;
+			}
+		}
+	}
+}
+
+
+uint64_t Parser::getSubsetsBeforeKClass(uint64_t normalizedIndex, int bagSize) {
+	uint64_t elemsBeforeKClass = 0;
+	int choose = 0; //make use of integer division
+	while (elemsBeforeKClass <= normalizedIndex) {
+		elemsBeforeKClass += binomial(bagSize, choose++);
+	}
+	elemsBeforeKClass -= binomial(bagSize, choose - 1);
+	return elemsBeforeKClass;
 }

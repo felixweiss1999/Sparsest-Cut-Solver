@@ -1,6 +1,7 @@
 #pragma once
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/copy.hpp>
+#include <boost/dynamic_bitset.hpp>
 #include <sstream>
 #include <iostream>
 #include <stdexcept>
@@ -25,6 +26,8 @@ struct Node {
     size_t parent;
     std::vector<size_t> children;
     bool visited;
+    dynamic_bitset<uint64_t>* forget_bitset;
+    uint16_t* join_j;
 };
 
 
@@ -42,28 +45,8 @@ struct DecompositionUtility {
 typedef adjacency_list<vecS, vecS, undirectedS, Node, no_property, DecompositionUtility> TreeDecomposition;
 
 
-struct CopiedNode {
-    int type;
-    //size_t specialVertex;
-    size_t inducedSubgraphSize;
-    //std::vector<size_t> bag;
-    size_t bagSize;
-    int height;
-    size_t parent;
-    std::vector<size_t> children;
-
-    bool visited;
-};
-
-
-typedef adjacency_list<vecS, vecS, undirectedS, CopiedNode, no_property, no_property> CopiedTreeDecomposition;
-
-
-struct vertex_copier {
-    TreeDecomposition& from;
-    CopiedTreeDecomposition& to;
-
-    void operator()(size_t input, size_t output) const {
-        to[output] = { from[input].type, from[input].inducedSubgraphSize, from[input].bag.size(), from[input].height, from[input].parent, from[input].children, from[input].visited };
-    }
+struct NodeIndexPair {
+    NodeIndexPair(size_t n, uint64_t vI): node(n), valueIndex(vI) {}
+    size_t node;
+    uint64_t valueIndex;
 };
