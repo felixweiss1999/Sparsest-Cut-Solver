@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 1;
+	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -239,14 +239,10 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				size_t introducedVertex = td[node].specialVertex;
 				size_t row = introducedVertex - 1; //for later use in weight computation
 				size_t child = td[node].children[0];
-				int introducedVertexPos = 0;
 				uint64_t mask = 1;
-				while (introducedVertexPos < bagSize) {
-					if (td[node].bag[introducedVertexPos] == introducedVertex)
-						break;
-					introducedVertexPos++;
+				for (int i = 0; td[node].bag[i] != introducedVertex; i++) {
+					mask = mask << 1;
 				}
-				uint64_t mask = ((uint64_t)1) << introducedVertexPos;
 				uint64_t counter = 0;
 				uint64_t introducedVertexNotContainedCounter = 0;
 				uint64_t introducedVertexContainedCounter = 0;
