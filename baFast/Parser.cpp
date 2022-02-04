@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	(*td)[graph_bundle].root = 1;
+	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	//(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -240,6 +240,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				size_t row = introducedVertex - 1; //for later use in weight computation
 				size_t child = td[node].children[0];
 				int introducedVertexPos = 0;
+				uint64_t mask = 1;
 				while (introducedVertexPos < bagSize) {
 					if (td[node].bag[introducedVertexPos] == introducedVertex)
 						break;
@@ -249,7 +250,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				uint64_t counter = 0;
 				uint64_t introducedVertexNotContainedCounter = 0;
 				uint64_t introducedVertexContainedCounter = 0;
-				int* indices = new int[bagSize];
 				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
 					uint64_t perm = ((uint64_t)1 << k) - 1;
 					uint64_t maxSubsets = binomial(bagSize, k);
@@ -319,7 +319,6 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
 					}
 				}
-				delete[] indices;
 			}
 			else if (td[node].type == 2) {
 				uint64_t childTotalLength = ((uint64_t)1 << (bagSize)) * (degOfFreedom - 1);
@@ -403,15 +402,11 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				size_t rightChild = td[node].children[1];
 				int degFreedomLeft = td[leftChild].inducedSubgraphSize - bagSize + 1;
 				int degFreedomRight = td[rightChild].inducedSubgraphSize - bagSize + 1;
-				uint64_t totalLengthLeft = ((uint64_t)1 << (bagSize - 1)) * degFreedomLeft;
-				uint64_t totalLengthRight = ((uint64_t)1 << (bagSize - 1)) * degFreedomRight;
+
 				uint64_t counter = 0;
-				int* indices = new int[bagSize];
 				
 				td[node].join_j = new uint16_t[totalLength];
 
-				uint64_t childHowManyBeforeKClassLeft = 0;
-				uint64_t childHowManyBeforeKClassRight = 0;
 				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
 
 					uint64_t perm = ((uint64_t)1 << k) - 1;
@@ -445,10 +440,9 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						}
 						// END compute weight
 
-						perm2Indices(indices, perm, k);
-						uint64_t baseIndex = getIndexOfSubset(indices, k);
-						uint64_t leftBaseIndex = (baseIndex - 1) * degFreedomLeft;
-						uint64_t rightBaseIndex = (baseIndex - 1) * degFreedomRight;
+						uint64_t leftIndexUpToSubset = (counter / degOfFreedom) * degFreedomLeft;
+						uint64_t rightIndexUpToSubset = (counter / degOfFreedom) * degFreedomRight;
+
 						for (int i = 0; i < degOfFreedom; i++) {
 							uint64_t min = UINT64_MAX;
 							int j_lowerBound = i - degFreedomRight + 1;
@@ -460,13 +454,12 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 							for (int j = j_lowerBound; j <= j_upperBound; j++) {
 								int notJ = i - j;
 								if (j < degFreedomLeft && notJ < degFreedomRight) {
-									uint64_t candidate = (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] + (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ];
+									uint64_t candidate = (uint64_t)td[leftChild].values[leftIndexUpToSubset + j] + (uint64_t)td[rightChild].values[rightIndexUpToSubset + notJ];
 									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
 									if (candidate < min) {
 										min = candidate;
 										td[node].join_j[counter] = j;
 									}
-										
 								}
 							}
 							vals[counter++] = min - cutWeight;
@@ -481,12 +474,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						_BitScanForward64(&temp, perm); //compiler directive, temp is loaded with amount of trailing zeros of perm.
 						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
 					}
-					uint64_t binom = binomial(bagSize, k);
-					childHowManyBeforeKClassLeft += binom * (degFreedomLeft);
-					childHowManyBeforeKClassRight += binom * (degFreedomRight);
 				}
-				delete[] indices;
-
 			}
 			else {//leaf
 				vals[0] = 0; 
