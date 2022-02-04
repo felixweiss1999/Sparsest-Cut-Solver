@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 1;
+	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -237,6 +237,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			if (td[node].type == 1) {//introduce
 				uint64_t childTotalLength = totalLength >> 1;
 				size_t introducedVertex = td[node].specialVertex;
+				size_t row = introducedVertex - 1; //for later use in weight computation
 				size_t child = td[node].children[0];
 				int introducedVertexPos = 0;
 				while (introducedVertexPos < bagSize) {
@@ -244,7 +245,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						break;
 					introducedVertexPos++;
 				}
-
+				uint64_t mask = ((uint64_t)1) << introducedVertexPos;
 				uint64_t counter = 0;
 				uint64_t introducedVertexNotContainedCounter = 0;
 				uint64_t introducedVertexContainedCounter = 0;
@@ -253,17 +254,48 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 					uint64_t perm = ((uint64_t)1 << k) - 1;
 					uint64_t maxSubsets = binomial(bagSize, k);
 					for (int s = 1; s <= maxSubsets; s++) {
-						perm2Indices(indices, perm, k);
-						if (perm & (((uint64_t)1) << introducedVertexPos)) {// x contained in S', never triggers when k = 0
-							int cutWeight = computeWeightIntroduceContained(td, introducedVertex, td[node].bag, indices, k);
+						if (perm & mask) {// x contained in S', never triggers when k = 0
+							
+							// compute weight
+							uint32_t cutWeight = 0;
+							uint64_t permSetDifference = ~perm;
+							int amountOfOnesInSetDifference = bagSize - k;
+							int onesUpToNow = 0;
+							if (amountOfOnesInSetDifference > 0) {
+								for (int i = 0; /*i < bagSize*/; i++) { //condition can never trigger
+									if (permSetDifference & 1) { // 
+										cutWeight += td[graph_bundle].adjacencyMatrix[row][td[node].bag[i] - 1];
+										if (++onesUpToNow >= amountOfOnesInSetDifference)
+											break;
+									}
+									permSetDifference = permSetDifference >> 1;
+								}
+							}
+							// END compute weight
+
 							for (int i = 0; i < degOfFreedom; i++) {
 								vals[counter++] = td[child].values[introducedVertexContainedCounter++] + cutWeight;
-								
 								//cout << "node " << node << " executed CONTAINED vals[" << counter - 1 << "] = td[child].values[" << introducedVertexContainedCounter - 1 << "] + " << cutWeight << endl;
 							}
 						}
 						else {//x not contained in S'
-							int cutWeight = computeWeightIntroduceNotContained(td, introducedVertex, td[node].bag, indices, k);
+
+							// compute weight
+							uint32_t cutWeight = 0;
+							uint64_t copyPerm = perm;
+							int onesUpToNow = 0;
+							if (perm > 0) { // necessary to prevent infinite loop
+								for (int i = 0; /*i < bagSize*/; i++) {
+									if (copyPerm & 1) {
+										cutWeight += td[graph_bundle].adjacencyMatrix[row][td[node].bag[i] - 1];
+										if (++onesUpToNow >= k)
+											break;
+									}
+									copyPerm = copyPerm >> 1;
+								}
+							}
+							// END compute weight
+
 							for (int i = 0; i < degOfFreedom; i++) {
 								uint64_t uncontainedIndex = introducedVertexNotContainedCounter; //mirror
 								if (introducedVertexNotContainedCounter >= childTotalLength) {
@@ -386,7 +418,33 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 					
 					uint64_t maxSubsets = binomial(bagSize, k);
 					for (int s = 1; s <= maxSubsets; s++) {
-						int cutWeight = computeWeightJoin(td, td[node].bag, perm);
+						// compute weight
+						int cutWeight = 0;
+						uint64_t copiedPerm = perm;
+						uint64_t permSetDifference = ~perm;
+						int amountOfOnesInPermDifference = bagSize - k;
+						int OUTERonesUpToNow = 0;
+						if (copiedPerm && amountOfOnesInPermDifference) {
+							for (int i = 0; /*i < copiedBag.size()*/; i++) {
+								if (copiedPerm & 1) {
+									int INNERonesUpToNow = 0;
+									for (int j = 0; /*j < copiedBag.size()*/; j++) {
+										if (permSetDifference & 1) {
+											cutWeight += td[graph_bundle].adjacencyMatrix[td[node].bag[i] - 1][td[node].bag[j] - 1];
+											if (++INNERonesUpToNow >= amountOfOnesInPermDifference)
+												break;
+										}
+										permSetDifference = permSetDifference >> 1;
+									}
+									permSetDifference = ~perm; //reset every time afterwards
+									if (++OUTERonesUpToNow >= k)
+										break;
+								}
+								copiedPerm = copiedPerm >> 1;
+							}
+						}
+						// END compute weight
+
 						perm2Indices(indices, perm, k);
 						uint64_t baseIndex = getIndexOfSubset(indices, k);
 						uint64_t leftBaseIndex = (baseIndex - 1) * degFreedomLeft;
@@ -753,57 +811,6 @@ finish:
 
 	return counterOfMin;
 }
-uint32_t Parser::computeWeightIntroduceContained(TreeDecomposition& td, size_t introducedVertex, const vector<size_t>& bag, int* indices, int lengthOfSDash) {
-	uint32_t weight = 0;
-
-	size_t* set_difference = new size_t[bag.size()];
-	vector<size_t> sDash;
-	for (int i = 0; i < lengthOfSDash; i++) {
-		sDash.push_back(bag[indices[i]]);
-	}
-
-	auto lastIndex = std::set_difference(bag.begin(), bag.end(), sDash.begin(), sDash.end(), set_difference);
-
-	size_t row = introducedVertex - 1;
-	for (auto it = set_difference; it != lastIndex; it++) {
-		if (*it == introducedVertex)
-			continue;
-		weight += td[graph_bundle].adjacencyMatrix[row][*it - 1];
-	}
-	delete[] set_difference;
-	return weight;
-}
-uint32_t Parser::computeWeightIntroduceNotContained(TreeDecomposition& td, size_t introducedVertex, const vector<size_t>& bag, int* indices, int amountNeighbors) {
-	uint32_t weight = 0;
-	size_t row = introducedVertex - 1;
-	for (int i = 0; i < amountNeighbors; i++) {
-		weight += td[graph_bundle].adjacencyMatrix[row][bag[indices[i]] - 1];
-	}
-	return weight;
-}
-uint32_t Parser::computeWeightJoin(TreeDecomposition& td, vector<size_t> copiedBag, uint64_t perm) {
-	int weight = 0;
-	uint64_t mask = 1;
-	vector<size_t> sDash;
-	const int leftOverSize = copiedBag.size();
-	for (int i = 0; i < leftOverSize; i++) {
-		if (mask & perm) {
-			sDash.push_back(copiedBag[i]);
-			copiedBag[i] = 0;
-		}
-		mask = mask << 1;
-	}
-	const int sDashSize = sDash.size();
-	for (int i = 0; i < sDashSize; i++) {
-		for (int j = 0; j < leftOverSize; j++) {
-			if (copiedBag[j] == 0)
-				continue;
-			weight += td[graph_bundle].adjacencyMatrix[sDash[i] - 1][copiedBag[j] - 1];
-		}
-	}
-	return weight;
-}
-
 
 
 size_t Parser::calculateOptimalRoot(TreeDecomposition& td) {

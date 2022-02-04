@@ -24,9 +24,6 @@ private:
 	std::string tableOfNode(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
 	uint64_t getIndexOfSubset(int*, int);
 	void perm2Indices(int*, uint64_t, int);
-	uint32_t computeWeightIntroduceContained(TreeDecomposition&, size_t, const std::vector<size_t>&, int*, int);
-	uint32_t computeWeightIntroduceNotContained(TreeDecomposition&, size_t, const std::vector<size_t>&, int*, int);
-	uint32_t computeWeightJoin(TreeDecomposition&, const std::vector<size_t>, uint64_t);
 	uint64_t calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
 	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
 

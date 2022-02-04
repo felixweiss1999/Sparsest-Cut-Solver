@@ -21,7 +21,7 @@ int main()
     try {
 
         std::ifstream file;
-        file.open("testInstances/ex014.td");
+        file.open("validateCut.td");
         auto start_time = std::chrono::high_resolution_clock::now();
         TreeDecomposition td = *p.parse(file);
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -32,7 +32,7 @@ int main()
         writeFile.open("test.td");
         p.exportDimax(td, writeFile);
         writeFile.close();*/
-        file.open("testInstances/ex014.gr");
+        file.open("validateCut.gr");
         p.fillAdjacencyMatrix(td, file);
         file.close();
         
@@ -42,7 +42,7 @@ int main()
         p.debugAlgorithm(td);
         end_time = std::chrono::high_resolution_clock::now();
         std::cout << (end_time - start_time) / std::chrono::microseconds(1) << " microseconds to run computation with root " << td[graph_bundle].root << std::endl;
-        //p.print(td, td[graph_bundle].root);
+        p.print(td, td[graph_bundle].root);
     }
     catch (const std::exception& e) {
         std::cout << e.what();
