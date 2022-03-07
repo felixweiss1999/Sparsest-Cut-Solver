@@ -768,6 +768,10 @@ uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::ve
 	int minWeight = 0;
 	uint64_t counter = 0;
 	uint64_t counterOfMin = 0;
+	int e_minWeight = 0;
+	uint64_t e_counterOfMin = 0;
+	double lowestI, lowestNotI;
+	double e_min = DBL_MAX;
 	double min = DBL_MAX;
 	for (int k = 0; k < bagSize + 1; k++) {
 		uint64_t maxSubsets = binomial(bagSize, k);
@@ -783,15 +787,28 @@ uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::ve
 				if (candidate < min) {
 					min = candidate;
 					minWeight = vals[counter - 1];
+					lowestI = i;
+					lowestNotI = notI;
 					counterOfMin = counter - 1;
 				}
+
+				//edge expansion
+				double e_candidate = (double)vals[counter - 1] / std::min(i, notI);
+				if (e_candidate < e_min) {
+					e_min = e_candidate;
+					e_minWeight = vals[counter - 1];
+					e_counterOfMin = counter - 1;
+				}
+
 			}
 			if (counter >= totalLength)
 				goto finish;
 		}
 	}
 finish:
-	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << " selected index in top table: " << counterOfMin << endl;
+	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << " selected index in top table: " << counterOfMin << " i: " << lowestI<<" notI: " << lowestNotI << endl;
+
+	cout << "edgeExpansion minWeight: " << e_minWeight << " minEdgeExpansionWeight: " << e_min << " selected index in top table: " << e_counterOfMin << endl;
 
 	return counterOfMin;
 }

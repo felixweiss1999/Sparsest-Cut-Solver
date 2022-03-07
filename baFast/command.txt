@@ -1,0 +1,1 @@
+java -cp "C:\dev\PACE2017-TrackA-master" -Xmx3g -Xms3g -Xss10m tw.exact.MainDecomposer < K_1.gr > K_1.td
