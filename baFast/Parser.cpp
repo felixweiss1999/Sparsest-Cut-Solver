@@ -65,7 +65,7 @@ TreeDecomposition* Parser::parse(istream& in) {
 	//ensure all nodes are unvisited
 	
 	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 1;
+	//(*td)[graph_bundle].root = 31;
 	makeNice(*td);
 	
 	return td;
@@ -477,7 +477,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			}
 finishedCalc:
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
-				delete[] td[*it].values;
+				//delete[] td[*it].values;
 			}
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
@@ -1045,8 +1045,14 @@ uint64_t Parser::calculateNumberOfOperations(TreeDecomposition& td, TreeDecompos
 			else {
 				td[node].inducedSubgraphSize = 1;
 			}
-
-			weight += ((uint64_t)1 << (td[node].bagSize - 1)) * (td[node].inducedSubgraphSize - td[node].bagSize + 1);
+			if (td[node].type == 3) {
+				uint64_t jAmount = (td[td[node].children[0]].inducedSubgraphSize - td[td[node].children[0]].bagSize + 1) * (td[td[node].children[1]].inducedSubgraphSize - td[td[node].children[1]].bagSize + 1);
+				weight += ((uint64_t)1 << (td[node].bagSize - 1)) * jAmount;
+			}
+			else {
+				weight += ((uint64_t)1 << (td[node].bagSize - 1)) * (td[node].inducedSubgraphSize - td[node].bagSize + 1);
+			}
+			
 			//cout << "Node " << node << " contributed " << ((uint64_t)1 << td[node].bagSize) * (td[node].inducedSubgraphSize - td[node].bagSize + 1) << " to the total weight!" << endl;
 			if (node == root) {
 				break;
