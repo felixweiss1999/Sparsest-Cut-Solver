@@ -64,8 +64,8 @@ TreeDecomposition* Parser::parse(istream& in) {
 
 	//ensure all nodes are unvisited
 	
-	//(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	(*td)[graph_bundle].root = 1;
+	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
+	//(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -1094,7 +1094,7 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 			leftPart = leftPart >> 1;
 			s = s & (((uint64_t)1 << intVertexPos) - 1);
 			q.push(NodeIndexPair(td[node].children[0], degOfFreedom * (leftPart | s) + i));
-			cout << "INTRODUCE: Pushed child " << td[node].children[0] << " with childIndex " << degOfFreedom * (leftPart | s) + i << endl;
+			//cout << "INTRODUCE: Pushed child " << td[node].children[0] << " with childIndex " << degOfFreedom * (leftPart | s) + i << endl;
 		}
 		else if (td[node].type == 2) {
 			int frgtVertexPos;
@@ -1108,11 +1108,11 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 
 			bool decision;
 			if (index >= degOfFreedom * ((uint64_t)1 << (td[node].bag.size() - 1))) {
-				cout << "flag1" << endl;
+				//cout << "flag1" << endl;
 				decision = !(*td[node].forget_bitset)[degOfFreedom * ((uint64_t)1 << (td[node].bag.size())) - index - 1];
 			}
 			else {
-				cout << "flag2" << endl;
+				//cout << "flag2" << endl;
 				decision = (*td[node].forget_bitset)[index];
 			}
 
@@ -1124,11 +1124,11 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 			if (decision) { // right value was taken
 				child_s = child_s | ((uint64_t)1 << frgtVertexPos);
 				q.push(NodeIndexPair(child, (degOfFreedom - 1) * child_s + i - 1));
-				cout << "ForgetRight: Pushed child " << child << " with childIndex " << (degOfFreedom - 1) * child_s + i - 1 << endl;
+				//cout << "ForgetRight: Pushed child " << child << " with childIndex " << (degOfFreedom - 1) * child_s + i - 1 << endl;
 			}
 			else {
 				q.push(NodeIndexPair(child, (degOfFreedom - 1) * child_s + i));
-				cout << "ForgetLeft: Pushed child " << child << " with childIndex " << (degOfFreedom - 1) * child_s + i << endl;
+				//cout << "ForgetLeft: Pushed child " << child << " with childIndex " << (degOfFreedom - 1) * child_s + i << endl;
 			}
 		}
 		else if (td[node].type == 3) {
@@ -1140,17 +1140,17 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 			uint64_t s = index / degOfFreedom;
 			uint64_t j;
 			if (index >= degOfFreedom * ((uint64_t)1 << (td[node].bag.size() - 1))) {
-				cout << "flag3" << endl;
+				//cout << "flag3" << endl;
 				j = std::min(i, degFreedomLeft - 1) - td[node].join_j[(uint64_t)degOfFreedom * ((uint64_t)1 << td[node].bag.size()) - index - 1];
 			}
 			else {
 				j = td[node].join_j[index] + std::max((long long int)0, (long long int)i - (long long int)degFreedomRight + 1); //careful with types!
-				cout << "flag4" << endl;
+				//cout << "flag4" << endl;
 			}
 			q.push(NodeIndexPair(leftChild, degFreedomLeft * s + j));
-			cout << "JOIN_1: Pushed child " << leftChild << " with childIndex " << degFreedomLeft * s + j << endl;
+			//cout << "JOIN_1: Pushed child " << leftChild << " with childIndex " << degFreedomLeft * s + j << endl;
 			q.push(NodeIndexPair(rightChild, degFreedomRight * s + i - j));
-			cout << "JOIN_2: Pushed child " << rightChild << " with childIndex " << degFreedomRight * s + i - j << endl;
+			//cout << "JOIN_2: Pushed child " << rightChild << " with childIndex " << degFreedomRight * s + i - j << endl;
 		}
 
 		q.pop();
