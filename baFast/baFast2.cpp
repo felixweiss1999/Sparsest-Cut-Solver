@@ -15,13 +15,11 @@ using namespace boost;
 int main()
 {
     Parser p;
-    //std::string a = "s td 4 5 4\nb 1 1 2 3 4\nb 2 2 3 4\nb 3\nb 4\n1 2\n1 3\n2 4";
-    //std::istringstream s(a);
 
     try {
 
         std::ifstream file;
-        file.open("testInstances/ex014.td");
+        file.open("validateCut.td");
         auto start_time = std::chrono::high_resolution_clock::now();
         TreeDecomposition td = *p.parse(file);
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -32,7 +30,7 @@ int main()
         writeFile.open("test.td");
         p.exportDimax(td, writeFile);
         writeFile.close();*/
-        file.open("testInstances/ex014.gr");
+        file.open("validateCut.gr");
         p.fillAdjacencyMatrix(td, file);
         file.close();
         
