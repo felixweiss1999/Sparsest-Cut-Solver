@@ -65,7 +65,7 @@ TreeDecomposition* Parser::parse(istream& in) {
 	//ensure all nodes are unvisited
 	
 	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
-	//(*td)[graph_bundle].root = 31;
+	//(*td)[graph_bundle].root = 1;
 	makeNice(*td);
 	
 	return td;
@@ -225,9 +225,9 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			}
 
 			const size_t bagSize = td[node].bag.size();
-			const uint64_t Y = td[node].inducedSubgraphSize;
-			const int degOfFreedom = Y - bagSize + 1;
-			uint64_t totalLength = ((uint64_t)1 << (bagSize - 1)) * degOfFreedom;
+			const uint64_t degOfFreedom = td[node].inducedSubgraphSize - bagSize + 1;
+			uint64_t s_max = (uint64_t)1 << (bagSize - 1);
+			uint64_t totalLength = s_max * degOfFreedom;
 			td[node].values = new uint32_t [totalLength];//want to be able to choose full bagSize as well
 			uint32_t* vals = td[node].values;
 
@@ -235,253 +235,234 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 
 			if (td[node].type == 1) {//introduce
-				uint64_t childTotalLength = totalLength >> 1;
-				size_t introducedVertex = td[node].specialVertex;
-				size_t row = introducedVertex - 1; //for later use in weight computation
+				uint64_t p = 0, c_1 = 0, c_2 = 0;
 				size_t child = td[node].children[0];
-				uint64_t mask = 1;
-				for (int i = 0; td[node].bag[i] != introducedVertex; i++) {
-					mask = mask << 1;
+				size_t intVertexInAdjacencyMatrix = td[node].specialVertex-1;
+				int intVertexPos;
+				for (int i = 0; i < bagSize; i++) {
+					if (td[node].bag[i] == td[node].specialVertex) {
+						intVertexPos = i;
+						break;
+					}
 				}
-				uint64_t counter = 0;
-				uint64_t introducedVertexNotContainedCounter = 0;
-				uint64_t introducedVertexContainedCounter = 0;
-				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
-					uint64_t perm = ((uint64_t)1 << k) - 1;
-					uint64_t maxSubsets = binomial(bagSize, k);
-					for (int s = 1; s <= maxSubsets; s++) {
-						if (perm & mask) {// x contained in S', never triggers when k = 0
-							
-							// compute weight
-							uint32_t cutWeight = 0;
-							uint64_t permSetDifference = ~perm;
-							int amountOfOnesInSetDifference = bagSize - k;
-							int onesUpToNow = 0;
-							if (amountOfOnesInSetDifference > 0) {
-								for (int i = 0; /*i < bagSize*/; i++) { //condition can never trigger
-									if (permSetDifference & 1) { // 
-										cutWeight += td[graph_bundle].adjacencyMatrix[row][td[node].bag[i] - 1];
-										if (++onesUpToNow >= amountOfOnesInSetDifference)
-											break;
-									}
-									permSetDifference = permSetDifference >> 1;
-								}
-							}
-							// END compute weight
 
-							for (int i = 0; i < degOfFreedom; i++) {
-								vals[counter++] = td[child].values[introducedVertexContainedCounter++] + cutWeight;
-								//cout << "node " << node << " executed CONTAINED vals[" << counter - 1 << "] = td[child].values[" << introducedVertexContainedCounter - 1 << "] + " << cutWeight << endl;
+				if (intVertexPos != bagSize - 1) { //no mirror necessary
+					uint64_t checkContainednessMask = (uint64_t)1 << intVertexPos;
+					for (uint64_t s = 0; s < s_max; s++) {
+						if (s & checkContainednessMask) {
+
+							//computeWeight when x in S'
+							uint64_t setRep = (~s) & (((uint64_t)1 << bagSize) - 1);
+							uint64_t weight = 0, i = 0;
+							while (setRep > 0) {
+								if (setRep & 1) {
+									weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
+								}
+								setRep = setRep >> 1;
+								i++;
 							}
+
+
+							for (uint64_t i = 0; i < degOfFreedom; i++)
+								vals[p++] = td[child].values[c_1++] + weight;
 						}
-						else {//x not contained in S'
+						else {
 
-							// compute weight
-							uint32_t cutWeight = 0;
-							uint64_t copyPerm = perm;
-							int onesUpToNow = 0;
-							if (perm > 0) { // necessary to prevent infinite loop
-								for (int i = 0; /*i < bagSize*/; i++) {
-									if (copyPerm & 1) {
-										cutWeight += td[graph_bundle].adjacencyMatrix[row][td[node].bag[i] - 1];
-										if (++onesUpToNow >= k)
-											break;
-									}
-									copyPerm = copyPerm >> 1;
+							//compute weight for x not in S'
+							uint64_t setRep = s;
+							uint64_t weight = 0, i = 0;
+							while (setRep > 0) {
+								if (setRep & 1) {
+									weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
 								}
+								setRep = setRep >> 1;
+								i++;
 							}
-							// END compute weight
 
-							for (int i = 0; i < degOfFreedom; i++) {
-								uint64_t uncontainedIndex = introducedVertexNotContainedCounter; //mirror
-								if (introducedVertexNotContainedCounter >= childTotalLength) {
-									uncontainedIndex = (totalLength) - introducedVertexNotContainedCounter++ - 1; //totalLength is childTotalLength * 2 already!
-								}
-								else {
-									uncontainedIndex = introducedVertexNotContainedCounter++;
-								}
-								vals[counter++] = td[child].values[uncontainedIndex] + cutWeight;
-								//cout << "node " << node << " executed UNCONTAINED vals[" << counter - 1 << "] = td[child].values[" << uncontainedIndex << "] + " << cutWeight << endl;
+
+							for (uint64_t i = 0; i < degOfFreedom; i++)
+								vals[p++] = td[child].values[c_2++] + weight;
+						}
+					}
+				}
+				else { //mirror necessary, and also only x not in S' possible
+					s_max = s_max >> 1;
+					for (uint64_t s = 0; s < s_max; s++) {
+
+						//compute weight for x not in S'
+						uint64_t setRep = s;
+						uint64_t weight = 0, i = 0;
+						while (setRep > 0) {
+							if (setRep & 1) {
+								weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
 							}
+							setRep = setRep >> 1;
+							i++;
 						}
 
-						//check that now out of bounds, necessary because often times not evenly split at some integer k, only need to check for every s, because those are always
-						if (counter >= totalLength)
-							goto finishedCalc;
-						//calculate next perm
-						uint64_t t = perm | (perm - 1);
-						unsigned long temp;
-						_BitScanForward64(&temp, perm); //compiler directive, temp is loaded with amount of trailing zeros of perm.
-						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
+
+						for (uint64_t i = 0; i < degOfFreedom; i++)
+							vals[p++] = td[child].values[c_2++] + weight;
+					}
+					s_max = s_max << 1;
+					for (uint64_t s = s_max >> 1; s < s_max; s++) { //second half of child indices needs to be mirrored
+
+						//compute weight for x not in S'
+						uint64_t setRep = s;
+						uint64_t weight = 0, i = 0;
+						while (setRep > 0) {
+							if (setRep & 1) {
+								weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
+							}
+							setRep = setRep >> 1;
+							i++;
+						}
+
+
+						for (uint64_t i = 0; i < degOfFreedom; i++)
+							vals[p++] = td[child].values[--c_2] + weight;
 					}
 				}
 			}
 			else if (td[node].type == 2) {
-				uint64_t childTotalLength = ((uint64_t)1 << (bagSize)) * (degOfFreedom - 1);
-				size_t forgottenVertex = td[node].specialVertex;
-				size_t child = td[node].children[0];
-
 				td[node].forget_bitset = new boost::dynamic_bitset<uint64_t>(totalLength);
-
-				int forgottenVertexPos = 0;
-				while (forgottenVertexPos < bagSize) {
-					if (forgottenVertex < td[node].bag[forgottenVertexPos])
+				size_t child = td[node].children[0];
+				int frgtVertexPos;
+				for (int i = 0; i < bagSize + 1; i++) { //CHILD bag is being searched!
+					if (td[child].bag[i] == td[node].specialVertex) {
+						frgtVertexPos = i;
 						break;
-					forgottenVertexPos++;
+					}
 				}
-				int counter = 0;
-				int* indices = new int[bagSize + 1]; //need one more because we need to be able to store child's indices!
-				uint64_t childHowManyBeforeKClassLate = 0;
-				uint64_t childHowManyBeforeKClass = 0;
-				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
+				uint64_t leftPartMask = UINT64_MAX << frgtVertexPos;
+				uint64_t rightPartMask = ((uint64_t)1 << frgtVertexPos) - 1;
+				uint64_t forgottenVertexBit = (uint64_t)1 << frgtVertexPos;
 
-					uint64_t perm = ((uint64_t)1 << k) - 1;
-					childHowManyBeforeKClass += binomial(bagSize + 1, k) * (degOfFreedom - 1); //important that this is up here, essentially making it one earlier
+				uint64_t p = 0;
+				if (frgtVertexPos != bagSize) { //bagsize = |X_u| = |X_v| - 1. In this case, no mirroring ever necessary
+					for (uint64_t s = 0; s < s_max; s++) {
+						uint64_t s_child = ((leftPartMask & s) << 1) | (rightPartMask & s); //inserted 0 at forgottenVertexPos
+						uint64_t leftBaseIndex = (degOfFreedom - 1) * s_child;
+						s_child = forgottenVertexBit | s_child;
+						uint64_t rightBaseIndex = (degOfFreedom - 1) * s_child;
 
-					uint64_t maxSubsets = binomial(bagSize, k);
-					for (int s = 1; s <= maxSubsets; s++) {
-						uint64_t leftPart = (UINT64_MAX << forgottenVertexPos) & perm;
-						leftPart = leftPart << 1;
-						uint64_t rightPart = (((uint64_t)1 << forgottenVertexPos) - 1) & perm;
-						uint64_t permChild = leftPart | rightPart; //inserted 0 at forgottenVertexPos
-						perm2Indices(indices, permChild, k);
-						uint64_t baseIndexLeft = (getIndexOfSubset(indices, k) - 1) * (degOfFreedom - 1);
-						permChild = permChild | ((uint64_t)1 << forgottenVertexPos); //set bit at forgottenVertexPos
-						perm2Indices(indices, permChild, k + 1);
-						uint64_t baseIndexRight = (getIndexOfSubset(indices, k + 1) - 1) * (degOfFreedom - 1);
-						for (int i = 0; i < degOfFreedom; i++) {
-							if (i == 0) {
-								vals[counter++] = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft];
-								//cout << "node " << node << " calculated LEFT td[child].values[" << childHowManyBeforeKClassLate << " + " << baseIndexLeft << " + 0]" << endl;
-							}
-							else if (i == degOfFreedom - 1) {
-								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
-								if (rightIndex >= childTotalLength) {
-									rightIndex = (childTotalLength << 1) - rightIndex - 1;
-								}
-								(*td[node].forget_bitset)[counter] = true;
-								vals[counter++] = td[child].values[rightIndex];
-								//cout << "node " << node << " calculated RIGHT------ td[child].values[" << rightIndex << "]" << endl;
+						//(*td[node].forget_bitset)[p] = false; unnecessary because always init to 0!
+						vals[p++] = td[child].values[leftBaseIndex];
+						for (uint64_t i = 1; i < degOfFreedom - 1; i++) {
+							uint64_t left = td[child].values[leftBaseIndex + i];
+							uint64_t right = td[child].values[rightBaseIndex + i - 1];
+							if (right < left) {
+								(*td[node].forget_bitset)[p] = true;
+								vals[p++] = right;
 							}
 							else {
-								uint32_t left = td[child].values[childHowManyBeforeKClassLate + baseIndexLeft + i];
-							
-								uint64_t rightIndex = childHowManyBeforeKClass + baseIndexRight + i - 1; //mirror
-								if (rightIndex >= childTotalLength) {
-									rightIndex = (childTotalLength << 1) - rightIndex - 1;
-								}
-								uint32_t right = td[child].values[rightIndex];
-								if (right < left) {
-									(*td[node].forget_bitset)[counter] = true;
-									vals[counter++] = right;
-								}
-								else {
-									vals[counter++] = left;
-								}
+								vals[p++] = left;
+							}
+						}
+						(*td[node].forget_bitset)[p] = true;
+						vals[p++] = td[child].values[rightBaseIndex + degOfFreedom - 2];
+					}
+				}
+				else { //mirroring may be necessary
+					uint64_t childTotalLength = (s_max << 1) * (degOfFreedom - 1);
+					for (uint64_t s = 0; s < s_max; s++) {
+						uint64_t s_child = ((leftPartMask & s) << 1) | (rightPartMask & s); //inserted 0 at forgottenVertexPos
+						uint64_t leftBaseIndex = (degOfFreedom - 1) * s_child;
+						s_child = forgottenVertexBit | s_child;
+						uint64_t rightBaseIndex = (degOfFreedom - 1) * s_child;
+
+						//(*td[node].forget_bitset)[p] = false; unnecessary because always init to 0!
+						vals[p++] = td[child].values[leftBaseIndex];
+						for (uint64_t i = 1; i < degOfFreedom - 1; i++) {
+							uint64_t left = td[child].values[leftBaseIndex + i];
+
+							uint64_t rightIndex = rightBaseIndex + i - 1; //mirror
+							if (rightIndex >= childTotalLength) {
+								rightIndex = (childTotalLength << 1) - rightIndex - 1;
+							}
+
+							uint64_t right = td[child].values[rightIndex];
+							if (right < left) {
+								(*td[node].forget_bitset)[p] = true;
+								vals[p++] = right;
+							}
+							else {
+								vals[p++] = left;
 							}
 						}
 
-						if (counter >= totalLength)
-							goto finishedCalc;
-						//calculate next perm
-						uint64_t t = perm | (perm - 1);
-						unsigned long temp;
-						_BitScanForward64(&temp, perm); //compiler directive, temp is loaded with amount of trailing zeros of perm.
-						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
+						uint64_t rightIndex = rightBaseIndex + degOfFreedom - 2; //mirror
+						if (rightIndex >= childTotalLength) {
+							rightIndex = (childTotalLength << 1) - rightIndex - 1;
+						}
+
+						(*td[node].forget_bitset)[p] = true;
+						vals[p++] = td[child].values[rightIndex];
 					}
-					childHowManyBeforeKClassLate += binomial(bagSize + 1, k) * (degOfFreedom - 1);
 				}
-				delete[] indices;
 			}
 			else if (td[node].type == 3) {
+				td[node].join_j = new uint16_t[totalLength];
 				size_t leftChild = td[node].children[0];
 				size_t rightChild = td[node].children[1];
 				int degFreedomLeft = td[leftChild].inducedSubgraphSize - bagSize + 1;
 				int degFreedomRight = td[rightChild].inducedSubgraphSize - bagSize + 1;
 
-				uint64_t counter = 0;
-				
-				td[node].join_j = new uint16_t[totalLength];
-
-				for (int k = 0; k < bagSize + 1; k++) {//for every k-class
-
-					uint64_t perm = ((uint64_t)1 << k) - 1;
+				uint64_t p = 0, leftBaseIndex = 0, rightBaseIndex = 0;
+				for (uint64_t s = 0; s < s_max; s++) {
 					
-					uint64_t maxSubsets = binomial(bagSize, k);
-					for (int s = 1; s <= maxSubsets; s++) {
-						// compute weight
-						int cutWeight = 0;
-						uint64_t copiedPerm = perm;
-						uint64_t permSetDifference = ~perm;
-						int amountOfOnesInPermDifference = bagSize - k;
-						int OUTERonesUpToNow = 0;
-						if (copiedPerm && amountOfOnesInPermDifference) {
-							for (int i = 0; /*i < copiedBag.size()*/; i++) {
-								if (copiedPerm & 1) {
-									int INNERonesUpToNow = 0;
-									for (int j = 0; /*j < copiedBag.size()*/; j++) {
-										if (permSetDifference & 1) {
-											cutWeight += td[graph_bundle].adjacencyMatrix[td[node].bag[i] - 1][td[node].bag[j] - 1];
-											if (++INNERonesUpToNow >= amountOfOnesInPermDifference)
-												break;
-										}
-										permSetDifference = permSetDifference >> 1;
-									}
-									permSetDifference = ~perm; //reset every time afterwards
-									if (++OUTERonesUpToNow >= k)
-										break;
+					//compute weight
+					uint64_t weight = 0;
+					uint64_t leftRep = s;
+					uint64_t a = 0;
+					while (leftRep > 0) {
+						if (leftRep & 1) {
+							uint64_t rightRep = (~s) & (((uint64_t)1 << bagSize) - 1);
+							uint64_t b = 0;
+							while (rightRep > 0) {
+								if (rightRep & 1) {
+									weight += td[graph_bundle].adjacencyMatrix[td[node].bag[a] - 1][td[node].bag[b] - 1];
 								}
-								copiedPerm = copiedPerm >> 1;
+								rightRep = rightRep >> 1;
+								b++;
 							}
 						}
-						// END compute weight
-
-						uint64_t leftIndexUpToSubset = (counter / degOfFreedom) * degFreedomLeft;
-						uint64_t rightIndexUpToSubset = (counter / degOfFreedom) * degFreedomRight;
-
-						for (int i = 0; i < degOfFreedom; i++) {
-							uint64_t min = UINT64_MAX;
-							int j_lowerBound = i - degFreedomRight + 1;
-							if (j_lowerBound < 0)
-								j_lowerBound = 0;
-							int j_upperBound = degFreedomLeft - 1;
-							if (j_upperBound > i)
-								j_upperBound = i;
-							for (int j = j_lowerBound; j <= j_upperBound; j++) {
-								int notJ = i - j;
-								if (j < degFreedomLeft && notJ < degFreedomRight) {
-									uint64_t candidate = (uint64_t)td[leftChild].values[leftIndexUpToSubset + j] + (uint64_t)td[rightChild].values[rightIndexUpToSubset + notJ];
-									//cout << "node " << node << " calculated td[leftChild].values[" << childHowManyBeforeKClassLeft << " + " << leftBaseIndex << " + " << j << "] + td[rightChild].values[" << childHowManyBeforeKClassRight << " + " << rightBaseIndex << " + " << notJ << "] which is candidate value " << candidate << " = " << (uint64_t)td[leftChild].values[childHowManyBeforeKClassLeft + leftBaseIndex + j] << " + " << (uint64_t)td[rightChild].values[childHowManyBeforeKClassRight + rightBaseIndex + notJ] << endl;
-									if (candidate < min) {
-										min = candidate;
-										td[node].join_j[counter] = j;
-									}
-								}
-							}
-							vals[counter++] = min - cutWeight;
-							//cout << "node " << node << " filled in minimum of " << min << " into td[" << node << "].values[" << counter - 1 << "]" << endl;
-						}
-
-						if (counter >= totalLength)
-							goto finishedCalc;
-
-						uint64_t t = perm | (perm - 1);
-						unsigned long temp;
-						_BitScanForward64(&temp, perm); //compiler directive, temp is loaded with amount of trailing zeros of perm.
-						perm = (t + 1) | (((~t & -~t) - 1) >> (temp + 1));
+						leftRep = leftRep >> 1;
+						a++;
 					}
+
+
+					for (uint64_t i = 0; i < degOfFreedom; i++) {
+						uint64_t min = UINT64_MAX;
+						int j_lowerBound = i - degFreedomRight + 1;
+						if (j_lowerBound < 0)
+							j_lowerBound = 0;
+						int j_upperBound = degFreedomLeft - 1;
+						if (j_upperBound > i)
+							j_upperBound = i;
+						for (int j = j_lowerBound; j <= j_upperBound; j++) {
+							uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
+							if (candidate < min) {
+								min = candidate;
+								td[node].join_j[p] = j - j_lowerBound;
+							}
+						}
+						vals[p++] = min - weight;
+					}
+					leftBaseIndex += degFreedomLeft;
+					rightBaseIndex += degFreedomRight;
 				}
 			}
 			else {//leaf
 				vals[0] = 0; 
 			}
-finishedCalc:
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
-				//delete[] td[*it].values;
+				delete[] td[*it].values;
 			}
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
-				retraceCut(td, root, calculateCutWeight(td, node));
+				calculateCutWeight(td, node);
+				//retraceCut(td, root, calculateCutWeight(td, node));
 				//retraceCut(td, 11, 22);
 				return;
 			}
@@ -1203,6 +1184,7 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 				int degFreedomLeft = td[leftChild].inducedSubgraphSize - td[node].bag.size() + 1;
 				int degFreedomRight = td[rightChild].inducedSubgraphSize - td[node].bag.size() + 1;
 				int i = index % degOfFreedom;
+				//cout << i << endl;
 				int j;
 				if (index >= nodeLength) {
 					//1. calculate range of possible j's, then determine mirroredJ's position in it. then select its inverse respective to that range and use that as the real j.
@@ -1211,9 +1193,9 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 					int mirroredI = mirroredIndex % degOfFreedom; // same i for mirrored and index position
 					int minMirroredJ = max(0, mirroredI - degFreedomRight + 1);
 					int distanceFromLeft = mirroredJ - minMirroredJ;
+					cout << i << " " << mirroredI << endl;
 					int maxj = min(i, degFreedomLeft - 1);
 					j = maxj - distanceFromLeft;
-					
 				}
 				else {
 					j = td[node].join_j[index];
