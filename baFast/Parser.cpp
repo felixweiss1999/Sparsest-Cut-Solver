@@ -48,8 +48,14 @@ TreeDecomposition* Parser::parse(istream& in) {
 	//read structure
 	while (getline(in, line)) {
 		if (line[0] == 'p') {
-
-			fillAdjacencyMatrix(*td, in);
+			//cout << "detected auto fill" << endl;
+			istringstream lineStream(line);
+			string trash;
+			int width;
+			if (!(lineStream >> trash >> trash >> width)) {
+				throw std::exception("WARNING: some error occurred while parsing the width of the original graph!");
+			}
+			fillAdjacencyMatrix(*td, in, width);
 			break;
 		}
 		else {
@@ -88,7 +94,7 @@ void Parser::fillAdjacencyMatrix(TreeDecomposition& td, istream& in, int width) 
 		for (int k = 0; k < width; k++)
 			matrix[i][k] = 0;
 	}
-	cout << "setup adjacency matrix of width " << width << endl;
+	//cout << "setup adjacency matrix of width " << width << endl;
 	while (getline(in, line)) {
 		istringstream lineStream(line);
 		int a, b;
@@ -694,111 +700,50 @@ vector<size_t>& Parser::removeElementFromBag(vector<size_t>& original, size_t el
 	}
 	return original;
 }
-uint64_t Parser::binomial(int n, int k) {
-	if (k < 0 || k > n)
-		return 0;
-	uint64_t t = 1;
-	if (k < n - k) {
-		for (int i = n; i > n - k; i--) {
-			t *= i;
-			t /= n - i + 1;
-		}
-	}
-	else {
-		for (int i = n; i > k; i--) {
-			t *= i;
-			t /= n - i + 1;
-		}
-	}
-	return t;
-}
-uint64_t Parser::getIndexOfSubset(int* indices, int len) {
-	uint64_t s = 1;
-	for (int index = len - 1; index >= 0; index--) {
-		//indices[index] accesses current index and index is also #leftToConsider!
-		if (int movedBy = indices[index] - index) {//has moved!!
-			s += binomial(index + movedBy, index + 1);
-		}
-	}
-	return s;
-}
 
-void Parser::perm2Indices(int* indices, uint64_t perm, int k) {
-	if (k == 0) {
-		return;
-	}
-	int index = 0;
-	for (int i = 0; i < 64; i++) {
-		if (perm & 1) {
-			indices[index++] = i;
-			if (index == k)
-				return;
-		}
-		perm = perm >> 1;
-	}
-}
 
 
 uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
 	const int bagSize = td[root].bag.size();
-	const int Y = td[root].inducedSubgraphSize;
-	const int degOfFreedom = Y - bagSize + 1;
-	uint64_t totalLength = ((uint64_t)1 << (bagSize - 1)) * degOfFreedom;
+	const int degOfFreedom = td[root].inducedSubgraphSize - bagSize + 1;
 	uint32_t* vals = td[root].values;
-	int minWeight = 0;
-	uint64_t counter = 0;
-	uint64_t counterOfMin = 0;
-	int e_minWeight = 0;
-	uint64_t e_counterOfMin = 0;
-	double lowestI, lowestNotI;
-	double e_min = DBL_MAX;
-	double min = DBL_MAX;
-	for (int k = 0; k < bagSize + 1; k++) {
-		uint64_t maxSubsets = binomial(bagSize, k);
-		for (int s = 1; s <= maxSubsets; s++) {
-			for (int i = k; i < k + degOfFreedom; i++) {
-				int notI = Y - i;
-				if (!(notI && i)) {
-					counter++;
-					continue;
-				}
-				double candidate = (double)vals[counter++] / (i * (notI));
-				//cout << candidate << endl;
-				if (candidate < min) {
-					min = candidate;
-					minWeight = vals[counter - 1];
-					lowestI = i;
-					lowestNotI = notI;
-					counterOfMin = counter - 1;
-				}
-
-				//edge expansion
-				double e_candidate = (double)vals[counter - 1] / std::min(i, notI);
-				if (e_candidate < e_min) {
-					e_min = e_candidate;
-					e_minWeight = vals[counter - 1];
-					e_counterOfMin = counter - 1;
-				}
-
+	//int minWeight = 0;
+	uint64_t p = 0;
+	uint64_t pOfMin = 0;
+	//double lowestI, lowestNotI;
+	double minSparsestCutDensity = DBL_MAX;
+	uint64_t s_max = (uint64_t)1 << (bagSize - 1);
+	for (int s = 0; s < s_max; s++) {
+		int k = std::_Checked_x86_x64_popcount(s);
+		for (int i = k; i < k + degOfFreedom; i++) {
+			int notI = td[root].inducedSubgraphSize - i;
+			if (!(notI && i)) {
+				p++;
+				continue;
 			}
-			if (counter >= totalLength)
-				goto finish;
+			double candidateDensity = (double)vals[p++] / (i * (notI));
+			//cout << candidate << endl;
+			if (candidateDensity < minSparsestCutDensity) {
+				minSparsestCutDensity = candidateDensity;
+				//minWeight = vals[p - 1];
+				//lowestI = i;
+				//lowestNotI = notI;
+				pOfMin = p - 1;
+			}
+
 		}
 	}
-finish:
-	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << " selected index in top table: " << counterOfMin << " i: " << lowestI<<" notI: " << lowestNotI << endl;
+	//cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << minSparsestCutDensity << " selected index in top table: " << pOfMin << " i: " << lowestI <<" notI: " << lowestNotI << endl;
 
-	cout << "edgeExpansion minWeight: " << e_minWeight << " minEdgeExpansionWeight: " << e_min << " selected index in top table: " << e_counterOfMin << endl;
-
-	return counterOfMin;
+	return pOfMin;
 }
 
 
 size_t Parser::calculateOptimalRoot(TreeDecomposition& td) {
 	uint64_t weight;
-	uint64_t maxWeight = 0;
+	//uint64_t maxWeight = 0;
 	uint64_t minWeight = UINT64_MAX;
-	size_t worstRoot = 1;
+	//size_t worstRoot = 1;
 	size_t bestRoot = 1;
 	std::queue<TreeDecomposition::vertex_descriptor> q;
 	for (auto it = vertices(td).first + 1; it != vertices(td).second; it++) {
@@ -819,13 +764,13 @@ size_t Parser::calculateOptimalRoot(TreeDecomposition& td) {
 			bestRoot = *rootCandidate;
 			minWeight = weight;
 		}
-		if (weight > maxWeight) {
-			worstRoot = *rootCandidate;
-			maxWeight = weight;
-		}
+		//if (weight > maxWeight) {
+		//	worstRoot = *rootCandidate;
+		//	maxWeight = weight;
+		//}
 	}
-	cout << "Best root was node " << bestRoot << " with a weight of " << minWeight << endl;
-	cout << "Worst root was node " << worstRoot << " with a weight of " << maxWeight << endl;
+	//cout << "Best root was node " << bestRoot << " with a weight of " << minWeight << endl;
+	//cout << "Worst root was node " << worstRoot << " with a weight of " << maxWeight << endl;
 	return bestRoot;
 }
 
@@ -1155,80 +1100,10 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 
 		q.pop();
 	}
-	cout << "Finished computing cut [";
+	//cout << "Finished computing cut [";
 	for (auto it = cut.begin(); it != cut.end(); it++)
-		cout << *it << ", ";
-	cout << "]" << endl;
+		cout << *it << endl;
+	//cout << "]" << endl;
 }
 
-void Parser::addUncontainedElementsToCut(vector<size_t>& cut, const vector<size_t>& sDash) {
-	for (auto it = sDash.begin(); it != sDash.end(); it++) {
-		bool contained = false;
-		for (auto cutIt = cut.begin(); cutIt != cut.end(); cutIt++) {
-			if (*it == *cutIt) {
-				contained = true;
-				break;
-			}
-		}
-		if (!contained) {
-			cut.push_back(*it);
-		}
-	}
-}
 
-vector<size_t> Parser::getSdash(const vector<size_t>& bag, uint64_t indexInTotalLength, int degOfFreedom, int* indices) {
-	vector<size_t> sDash;
-	uint64_t elemsBeforeKClass = 0;
-	int choose = 0;
-	uint64_t totalIndexNormalized = indexInTotalLength / degOfFreedom; //make use of integer division
-	while (elemsBeforeKClass <= totalIndexNormalized) {
-		elemsBeforeKClass += binomial(bag.size(), choose++);
-	}
-	elemsBeforeKClass -= binomial(bag.size(), choose - 1);
-	//elemsBeforeKClass *= degOfFreedom;
-
-	uint64_t s = totalIndexNormalized - elemsBeforeKClass + 1;
-	
-	fillIndices(indices, choose - 1, s);
-	for (int i = 0; i < choose - 1; i++) {
-		sDash.push_back(bag[indices[i]]);
-	}
-	return sDash;
-}
-
-void Parser::fillIndices(int* indices, int l, int s) {
-	int* temp = indices;
-	int i = 0;
-	while (i < l) { //prefill
-		*(temp++) = i++;
-	}
-	for (int index = l - 1; index >= 0; index--) { //move index in indexes[k-1], then [k-2] .., index = #leftToConsider -> index+1 = k
-		int k = index + 1;
-		int n = indices[index] + 1; //0->1 shift
-		uint64_t bin = 1; //always one because of initialization of indices[]
-		while (true) {
-			if (bin < s) { //need to skip more
-				n++;
-				bin *= n;
-				bin /= n - k;
-				//cout << "Increased n because bin was not sufficient to cover full distance to s. Newly calculated " << n << " / (" << n - k << " ) and gotten new bin=" << bin << endl;
-			}
-			else { //skipped just once too much, or direct hit. anyway, roll back, save and move on to correct with lower index
-				indices[index] = n - 1; //0<-1 shift
-				bin *= n - k;
-				bin /= n;
-				s -= bin;
-				break;
-			}
-		}
-	}
-}
-uint64_t Parser::getSubsetsBeforeKClass(uint64_t normalizedIndex, int bagSize) {
-	uint64_t elemsBeforeKClass = 0;
-	int choose = 0; //make use of integer division
-	while (elemsBeforeKClass <= normalizedIndex) {
-		elemsBeforeKClass += binomial(bagSize, choose++);
-	}
-	elemsBeforeKClass -= binomial(bagSize, choose - 1);
-	return elemsBeforeKClass;
-}

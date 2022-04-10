@@ -18,28 +18,29 @@ int main()
 
     try {
 
-        std::ifstream file;
-        file.open("testInstances/ex014.td");
-        auto start_time = std::chrono::high_resolution_clock::now();
-        TreeDecomposition td = *p.parse(file);
-        auto end_time = std::chrono::high_resolution_clock::now();
-        std::cout << (end_time - start_time) / std::chrono::microseconds(1) << " microseconds to find best root " << std::endl;
-        file.close();
+        //std::ifstream file;
+        //file.open("ex001.td");
+        //auto start_time = std::chrono::high_resolution_clock::now();
+        TreeDecomposition td = *p.parse(std::cin);
+        //auto end_time = std::chrono::high_resolution_clock::now();
+        //std::cout << (end_time - start_time) / std::chrono::microseconds(1) << " microseconds to find best root " << std::endl;
+        //file.close();
         
         /*std::ofstream writeFile;
         writeFile.open("test.td");
         p.exportDimax(td, writeFile);
         writeFile.close();*/
-        file.open("testInstances/ex014.gr");
-        p.fillAdjacencyMatrix(td, file);
-        file.close();
         
-        std::cout << "Ready?" << std::endl;
-        std::cin.get();
-        start_time = std::chrono::high_resolution_clock::now();
+        //file.open("ex001.gr");
+        //p.fillAdjacencyMatrix(td, file);
+        //file.close();
+        
+        //std::cout << "Ready?" << std::endl;
+        //std::cin.get();
+        //start_time = std::chrono::high_resolution_clock::now();
         p.debugAlgorithm(td);
-        end_time = std::chrono::high_resolution_clock::now();
-        std::cout << (end_time - start_time) / std::chrono::microseconds(1) << " microseconds to run computation with root " << td[graph_bundle].root << std::endl;
+        //end_time = std::chrono::high_resolution_clock::now();
+        //std::cout << (end_time - start_time) / std::chrono::microseconds(1) << " microseconds to run computation with root " << td[graph_bundle].root << std::endl;
         //p.print(td, td[graph_bundle].root);
     }
     catch (const std::exception& e) {
