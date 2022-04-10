@@ -463,11 +463,13 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				vals[0] = 0; 
 			}
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
-				//delete[] td[*it].values;
+				delete[] td[*it].values;
 			}
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
-				retraceCut(td, root, calculateCutWeight(td, root));
+				uint64_t rootIndex = calculateCutWeight(td, root);
+				delete[] td[root].values;
+				retraceCut(td, root, rootIndex);
 				//retraceCut(td, 11, 22);
 				return;
 			}
