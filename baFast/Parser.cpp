@@ -703,56 +703,41 @@ vector<size_t>& Parser::removeElementFromBag(vector<size_t>& original, size_t el
 
 uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
 	const int bagSize = td[root].bag.size();
-	const int Y = td[root].inducedSubgraphSize;
-	const int degOfFreedom = Y - bagSize + 1;
-	uint64_t totalLength = ((uint64_t)1 << (bagSize - 1)) * degOfFreedom;
+	const int degOfFreedom = td[root].inducedSubgraphSize - bagSize + 1;
 	uint32_t* vals = td[root].values;
 	int minWeight = 0;
-	uint64_t counter = 0;
-	uint64_t counterOfMin = 0;
-	int e_minWeight = 0;
-	uint64_t e_counterOfMin = 0;
+	uint64_t p = 0;
+	uint64_t pOfMin = 0;
 	double lowestI, lowestNotI;
-	double e_min = DBL_MAX;
-	double min = DBL_MAX;
-	for (int k = 0; k < bagSize + 1; k++) {
-		uint64_t maxSubsets = binomial(bagSize, k);
-		for (int s = 1; s <= maxSubsets; s++) {
-			for (int i = k; i < k + degOfFreedom; i++) {
-				int notI = Y - i;
-				if (!(notI && i)) {
-					counter++;
-					continue;
-				}
-				double candidate = (double)vals[counter++] / (i * (notI));
-				//cout << candidate << endl;
-				if (candidate < min) {
-					min = candidate;
-					minWeight = vals[counter - 1];
-					lowestI = i;
-					lowestNotI = notI;
-					counterOfMin = counter - 1;
-				}
-
-				//edge expansion
-				double e_candidate = (double)vals[counter - 1] / std::min(i, notI);
-				if (e_candidate < e_min) {
-					e_min = e_candidate;
-					e_minWeight = vals[counter - 1];
-					e_counterOfMin = counter - 1;
-				}
-
+	double minSparsestCutDensity = DBL_MAX;
+	uint64_t s_max = (uint64_t)1 << (bagSize - 1);
+	for (int s = 0; s < s_max; s++) {
+		int k = std::_Checked_x86_x64_popcount(s);
+		for (int i = k; i < k + degOfFreedom; i++) {
+			int notI = td[root].inducedSubgraphSize - i;
+			if (!(notI && i)) {
+				p++;
+				continue;
 			}
-			if (counter >= totalLength)
-				goto finish;
+			double candidateDensity = (double)vals[p++] / (i * (notI));
+			//cout << candidate << endl;
+			if (candidateDensity < minSparsestCutDensity) {
+				minSparsestCutDensity = candidateDensity;
+				minWeight = vals[p - 1];
+				lowestI = i;
+				lowestNotI = notI;
+				pOfMin = p - 1;
+			}
+
 		}
 	}
-finish:
-	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << min << " selected index in top table: " << counterOfMin << " i: " << lowestI<<" notI: " << lowestNotI << endl;
+	//cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << minSparsestCutDensity << " selected index in top table: " << pOfMin << " i: " << lowestI <<" notI: " << lowestNotI << endl;
 
-	cout << "edgeExpansion minWeight: " << e_minWeight << " minEdgeExpansionWeight: " << e_min << " selected index in top table: " << e_counterOfMin << endl;
+	
 
-	return counterOfMin;
+	cout << "minWeight: " << minWeight << " minSparsestCutWeight: " << minSparsestCutDensity << " selected index in top table: " << pOfMin << " i: " << lowestI<<" notI: " << lowestNotI << endl;
+
+	return pOfMin;
 }
 
 
