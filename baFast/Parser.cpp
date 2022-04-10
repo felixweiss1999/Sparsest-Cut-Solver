@@ -457,11 +457,13 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				vals[0] = 0; 
 			}
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
-				//delete[] td[*it].values;
+				delete[] td[*it].values;
 			}
 			if (node == root) {
 				//cout << "thread with id " << std::this_thread::get_id() << " has reached root and will now cease activity!" << endl;
-				retraceCut(td, root, calculateCutWeight(td, root));
+				uint64_t rootIndex = calculateCutWeight(td, root);
+				delete[] td[root].values;
+				retraceCut(td, root, rootIndex);
 				//retraceCut(td, 11, 22);
 				return;
 			}
@@ -694,49 +696,9 @@ vector<size_t>& Parser::removeElementFromBag(vector<size_t>& original, size_t el
 	}
 	return original;
 }
-uint64_t Parser::binomial(int n, int k) {
-	if (k < 0 || k > n)
-		return 0;
-	uint64_t t = 1;
-	if (k < n - k) {
-		for (int i = n; i > n - k; i--) {
-			t *= i;
-			t /= n - i + 1;
-		}
-	}
-	else {
-		for (int i = n; i > k; i--) {
-			t *= i;
-			t /= n - i + 1;
-		}
-	}
-	return t;
-}
-uint64_t Parser::getIndexOfSubset(int* indices, int len) {
-	uint64_t s = 1;
-	for (int index = len - 1; index >= 0; index--) {
-		//indices[index] accesses current index and index is also #leftToConsider!
-		if (int movedBy = indices[index] - index) {//has moved!!
-			s += binomial(index + movedBy, index + 1);
-		}
-	}
-	return s;
-}
 
-void Parser::perm2Indices(int* indices, uint64_t perm, int k) {
-	if (k == 0) {
-		return;
-	}
-	int index = 0;
-	for (int i = 0; i < 64; i++) {
-		if (perm & 1) {
-			indices[index++] = i;
-			if (index == k)
-				return;
-		}
-		perm = perm >> 1;
-	}
-}
+
+
 
 
 uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
@@ -1161,74 +1123,3 @@ void Parser::retraceCut(TreeDecomposition& td, TreeDecomposition::vertex_descrip
 	cout << "]" << endl;
 }
 
-void Parser::addUncontainedElementsToCut(vector<size_t>& cut, const vector<size_t>& sDash) {
-	for (auto it = sDash.begin(); it != sDash.end(); it++) {
-		bool contained = false;
-		for (auto cutIt = cut.begin(); cutIt != cut.end(); cutIt++) {
-			if (*it == *cutIt) {
-				contained = true;
-				break;
-			}
-		}
-		if (!contained) {
-			cut.push_back(*it);
-		}
-	}
-}
-
-vector<size_t> Parser::getSdash(const vector<size_t>& bag, uint64_t indexInTotalLength, int degOfFreedom, int* indices) {
-	vector<size_t> sDash;
-	uint64_t elemsBeforeKClass = 0;
-	int choose = 0;
-	uint64_t totalIndexNormalized = indexInTotalLength / degOfFreedom; //make use of integer division
-	while (elemsBeforeKClass <= totalIndexNormalized) {
-		elemsBeforeKClass += binomial(bag.size(), choose++);
-	}
-	elemsBeforeKClass -= binomial(bag.size(), choose - 1);
-	//elemsBeforeKClass *= degOfFreedom;
-
-	uint64_t s = totalIndexNormalized - elemsBeforeKClass + 1;
-	
-	fillIndices(indices, choose - 1, s);
-	for (int i = 0; i < choose - 1; i++) {
-		sDash.push_back(bag[indices[i]]);
-	}
-	return sDash;
-}
-
-void Parser::fillIndices(int* indices, int l, int s) {
-	int* temp = indices;
-	int i = 0;
-	while (i < l) { //prefill
-		*(temp++) = i++;
-	}
-	for (int index = l - 1; index >= 0; index--) { //move index in indexes[k-1], then [k-2] .., index = #leftToConsider -> index+1 = k
-		int k = index + 1;
-		int n = indices[index] + 1; //0->1 shift
-		uint64_t bin = 1; //always one because of initialization of indices[]
-		while (true) {
-			if (bin < s) { //need to skip more
-				n++;
-				bin *= n;
-				bin /= n - k;
-				//cout << "Increased n because bin was not sufficient to cover full distance to s. Newly calculated " << n << " / (" << n - k << " ) and gotten new bin=" << bin << endl;
-			}
-			else { //skipped just once too much, or direct hit. anyway, roll back, save and move on to correct with lower index
-				indices[index] = n - 1; //0<-1 shift
-				bin *= n - k;
-				bin /= n;
-				s -= bin;
-				break;
-			}
-		}
-	}
-}
-uint64_t Parser::getSubsetsBeforeKClass(uint64_t normalizedIndex, int bagSize) {
-	uint64_t elemsBeforeKClass = 0;
-	int choose = 0; //make use of integer division
-	while (elemsBeforeKClass <= normalizedIndex) {
-		elemsBeforeKClass += binomial(bagSize, choose++);
-	}
-	elemsBeforeKClass -= binomial(bagSize, choose - 1);
-	return elemsBeforeKClass;
-}
