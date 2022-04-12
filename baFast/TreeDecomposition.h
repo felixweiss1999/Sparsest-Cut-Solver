@@ -21,7 +21,7 @@ struct Node {
     size_t inducedSubgraphSize;
     std::vector<size_t> bag;
     size_t bagSize;
-    uint32_t* values;
+    float* values;
     int height;
     size_t parent;
     std::vector<size_t> children;
@@ -38,7 +38,7 @@ struct DecompositionUtility {
     size_t root;
     int numberVerticesOfDecomposedGraph;
     int maxBagSize;
-    int** adjacencyMatrix;
+    float** adjacencyMatrix;
 };
 
 

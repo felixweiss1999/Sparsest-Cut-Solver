@@ -89,9 +89,9 @@ void Parser::fillAdjacencyMatrix(TreeDecomposition& td, istream& in, int width) 
 		}
 	}
 	//setup matrix to be filled, set it to 0
-	int** matrix = new int* [width];
+	float** matrix = new float* [width];
 	for (int i = 0; i < width; i++) {
-		matrix[i] = new int[width];
+		matrix[i] = new float[width];
 		for (int k = 0; k < width; k++)
 			matrix[i][k] = 0;
 	}
@@ -99,10 +99,11 @@ void Parser::fillAdjacencyMatrix(TreeDecomposition& td, istream& in, int width) 
 	while (getline(in, line)) {
 		istringstream lineStream(line);
 		int a, b;
-		if (!(lineStream >> a >> b))
+		float weight;
+		if (!(lineStream >> a >> b >> weight))
 			throw std::exception("WARNING: some error occurred while parsing an edge of original graph!");
-		matrix[a - 1][b - 1] = 1;
-		matrix[b - 1][a - 1] = 1;
+		matrix[a - 1][b - 1] = weight;
+		matrix[b - 1][a - 1] = weight;
 	}
 	td[graph_bundle].adjacencyMatrix = matrix;
 }
@@ -235,8 +236,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 			const uint64_t degOfFreedom = td[node].inducedSubgraphSize - bagSize + 1;
 			uint64_t s_max = (uint64_t)1 << (bagSize - 1);
 			uint64_t totalLength = s_max * degOfFreedom;
-			td[node].values = new uint32_t [totalLength];//want to be able to choose full bagSize as well
-			uint32_t* vals = td[node].values;
+			td[node].values = new float [totalLength];//want to be able to choose full bagSize as well
+			float* vals = td[node].values;
 
 			//cout << "thread with id " << std::this_thread::get_id() << " is calculating node " << node << " of type " << td[node].type << " at height " << td[node].height << " with " << ((uint64_t)1 << bagSize) << " * " << degOfFreedom << " values needing to be computed" << endl;
 
@@ -260,7 +261,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 							//computeWeight when x in S'
 							uint64_t setRep = (~s) & (((uint64_t)1 << bagSize) - 1);
-							uint64_t weight = 0, i = 0;
+							float weight = 0;
+							int i = 0;
 							while (setRep > 0) {
 								if (setRep & 1) {
 									weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
@@ -277,7 +279,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 							//compute weight for x not in S'
 							uint64_t setRep = s;
-							uint64_t weight = 0, i = 0;
+							float weight = 0;
+							int i = 0;
 							while (setRep > 0) {
 								if (setRep & 1) {
 									weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
@@ -298,7 +301,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 						//compute weight for x not in S'
 						uint64_t setRep = s;
-						uint64_t weight = 0, i = 0;
+						float weight = 0;
+						int i = 0;
 						while (setRep > 0) {
 							if (setRep & 1) {
 								weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
@@ -316,7 +320,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 						//compute weight for x not in S'
 						uint64_t setRep = s;
-						uint64_t weight = 0, i = 0;
+						float weight = 0;
+						int i = 0;
 						while (setRep > 0) {
 							if (setRep & 1) {
 								weight += td[graph_bundle].adjacencyMatrix[intVertexInAdjacencyMatrix][td[node].bag[i] - 1];
@@ -356,8 +361,8 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						//(*td[node].forget_bitset)[p] = false; unnecessary because always init to 0!
 						vals[p++] = td[child].values[leftBaseIndex];
 						for (uint64_t i = 1; i < degOfFreedom - 1; i++) {
-							uint64_t left = td[child].values[leftBaseIndex + i];
-							uint64_t right = td[child].values[rightBaseIndex + i - 1];
+							float left = td[child].values[leftBaseIndex + i];
+							float right = td[child].values[rightBaseIndex + i - 1];
 							if (right < left) {
 								(*td[node].forget_bitset)[p] = true;
 								vals[p++] = right;
@@ -381,14 +386,14 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						//(*td[node].forget_bitset)[p] = false; unnecessary because always init to 0!
 						vals[p++] = td[child].values[leftBaseIndex];
 						for (uint64_t i = 1; i < degOfFreedom - 1; i++) {
-							uint64_t left = td[child].values[leftBaseIndex + i];
+							float left = td[child].values[leftBaseIndex + i];
 
 							uint64_t rightIndex = rightBaseIndex + i - 1; //mirror
 							if (rightIndex >= childTotalLength) {
 								rightIndex = (childTotalLength << 1) - rightIndex - 1;
 							}
 
-							uint64_t right = td[child].values[rightIndex];
+							float right = td[child].values[rightIndex];
 							if (right < left) {
 								(*td[node].forget_bitset)[p] = true;
 								vals[p++] = right;
@@ -419,7 +424,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				for (uint64_t s = 0; s < s_max; s++) {
 					
 					//compute weight
-					uint64_t weight = 0;
+					float weight = 0;
 					uint64_t leftRep = s;
 					uint64_t a = 0;
 					while (leftRep > 0) {
@@ -440,7 +445,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 
 
 					for (uint64_t i = 0; i < degOfFreedom; i++) {
-						uint64_t min = UINT64_MAX;
+						float min = FLT_MAX;
 						int j_lowerBound = i - degFreedomRight + 1;
 						if (j_lowerBound < 0)
 							j_lowerBound = 0;
@@ -448,7 +453,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 						if (j_upperBound > i)
 							j_upperBound = i;
 						for (int j = j_lowerBound; j <= j_upperBound; j++) {
-							uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
+							float candidate = td[leftChild].values[leftBaseIndex + j] + td[rightChild].values[rightBaseIndex + i - j];
 							if (candidate < min) {
 								min = candidate;
 								td[node].join_j[p] = j - j_lowerBound;
@@ -461,7 +466,7 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 				}
 			}
 			else {//leaf
-				vals[0] = 0; 
+				vals[0] = 0.0; 
 			}
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 				delete[] td[*it].values;
@@ -750,7 +755,7 @@ vector<size_t>& Parser::removeElementFromBag(vector<size_t>& original, size_t el
 uint64_t Parser::calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root) {
 	const int bagSize = td[root].bag.size();
 	const int degOfFreedom = td[root].inducedSubgraphSize - bagSize + 1;
-	uint32_t* vals = td[root].values;
+	float* vals = td[root].values;
 	//int minWeight = 0;
 	uint64_t p = 0;
 	uint64_t pOfMin = 0;
