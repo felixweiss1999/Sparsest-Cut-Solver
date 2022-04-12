@@ -23,7 +23,7 @@ private:
 	std::string tableOfNode(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
 	uint64_t calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
 	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
-
+	void removeRedundantNodes(TreeDecomposition& td);
 	atomicQueue leafs;
 	std::vector<std::atomic_flag> joinWasVisited;
 };
