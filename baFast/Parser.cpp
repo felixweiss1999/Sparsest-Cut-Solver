@@ -63,7 +63,9 @@ TreeDecomposition* Parser::parse(istream& in) {
 	}
 
 	//ensure all nodes are unvisited
-	
+	//check bag disjointness and equality. if disjoint, add one of larger bags' vertices to smaller bag(in sorted way). if equal, delete w (and all children that are equal) by linking v with the first node(s) that are not equal, if there are any at all
+	removeRedundantNodes(*td);
+
 	(*td)[graph_bundle].root = calculateOptimalRoot(*td);
 	//(*td)[graph_bundle].root = 1;
 	makeNice(*td);
@@ -415,46 +417,46 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 					uint64_t weight = 0;
 					uint64_t leftRep = s;
 					uint64_t a = 0;
-					while (leftRep > 0) {
-						if (leftRep & 1) {
-							uint64_t rightRep = (~s) & (((uint64_t)1 << bagSize) - 1);
-							uint64_t b = 0;
-							while (rightRep > 0) {
-								if (rightRep & 1) {
-									weight += td[graph_bundle].adjacencyMatrix[td[node].bag[a] - 1][td[node].bag[b] - 1];
-								}
-								rightRep = rightRep >> 1;
-								b++;
-							}
-						}
-						leftRep = leftRep >> 1;
-						a++;
-					}
+while (leftRep > 0) {
+	if (leftRep & 1) {
+		uint64_t rightRep = (~s) & (((uint64_t)1 << bagSize) - 1);
+		uint64_t b = 0;
+		while (rightRep > 0) {
+			if (rightRep & 1) {
+				weight += td[graph_bundle].adjacencyMatrix[td[node].bag[a] - 1][td[node].bag[b] - 1];
+			}
+			rightRep = rightRep >> 1;
+			b++;
+		}
+	}
+	leftRep = leftRep >> 1;
+	a++;
+}
 
 
-					for (uint64_t i = 0; i < degOfFreedom; i++) {
-						uint64_t min = UINT64_MAX;
-						int j_lowerBound = i - degFreedomRight + 1;
-						if (j_lowerBound < 0)
-							j_lowerBound = 0;
-						int j_upperBound = degFreedomLeft - 1;
-						if (j_upperBound > i)
-							j_upperBound = i;
-						for (int j = j_lowerBound; j <= j_upperBound; j++) {
-							uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
-							if (candidate < min) {
-								min = candidate;
-								td[node].join_j[p] = j - j_lowerBound;
-							}
-						}
-						vals[p++] = min - weight;
-					}
-					leftBaseIndex += degFreedomLeft;
-					rightBaseIndex += degFreedomRight;
+for (uint64_t i = 0; i < degOfFreedom; i++) {
+	uint64_t min = UINT64_MAX;
+	int j_lowerBound = i - degFreedomRight + 1;
+	if (j_lowerBound < 0)
+		j_lowerBound = 0;
+	int j_upperBound = degFreedomLeft - 1;
+	if (j_upperBound > i)
+		j_upperBound = i;
+	for (int j = j_lowerBound; j <= j_upperBound; j++) {
+		uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
+		if (candidate < min) {
+			min = candidate;
+			td[node].join_j[p] = j - j_lowerBound;
+		}
+	}
+	vals[p++] = min - weight;
+}
+leftBaseIndex += degFreedomLeft;
+rightBaseIndex += degFreedomRight;
 				}
 			}
 			else {//leaf
-				vals[0] = 0; 
+			vals[0] = 0;
 			}
 			for (auto it = td[node].children.begin(); it != td[node].children.end(); it++) {
 				delete[] td[*it].values;
@@ -487,6 +489,50 @@ void Parser::debugAlgorithm(TreeDecomposition& td) {
 		myWorkers[i].join();
 	}
 	td[graph_bundle].tablesInitialized = true;
+}
+
+
+void Parser::removeRedundantNodes(TreeDecomposition& td) {
+	// redundancy removal
+	for (auto nodeit = vertices(td).second - 1; nodeit != vertices(td).first; nodeit--) {
+		for (auto edgeit = out_edges(*nodeit, td).first; edgeit != out_edges(*nodeit, td).second; edgeit++) {
+			size_t neighbor = boost::target(*edgeit, td);
+
+			if (std::includes(td[neighbor].bag.begin(), td[neighbor].bag.end(), td[*nodeit].bag.begin(), td[*nodeit].bag.end())) { //redundant one detected, also removes empty bags
+				for (auto otherNeighborEdge = out_edges(*nodeit, td).first; otherNeighborEdge != out_edges(*nodeit, td).second; otherNeighborEdge++) {
+					size_t otherNeighborID = target(*otherNeighborEdge, td);
+					if (otherNeighborID != neighbor) {
+						add_edge(vertex(neighbor, td), vertex(otherNeighborID, td), td);
+					}
+				}
+				//cout << "removed node " << *nodeit << endl;
+				clear_vertex(*nodeit, td);
+				remove_vertex(*nodeit, td); //also removes all edges of this node
+				//for (auto edgeit = edges(td).first; edgeit != edges(td).second; edgeit++)
+				//	cout << *edgeit << endl;
+				break;
+			}
+		}
+	}
+
+	// empty bag in nice td prevention
+	for (auto nodeit = vertices(td).first + 1; nodeit != vertices(td).second; nodeit++) {
+		for (auto edgeit = out_edges(*nodeit, td).first; edgeit != out_edges(*nodeit, td).second; edgeit++) {
+			size_t neighbor = target(*edgeit, td);
+			if (*nodeit < neighbor) { //only check for larger vertices that thus have not been traversed yet
+				std::vector<size_t> intersect(64); //bagsize of 100 not feasible, always suffices
+				if ((std::set_intersection(td[*nodeit].bag.begin(), td[*nodeit].bag.end(), td[neighbor].bag.begin(), td[neighbor].bag.end(), intersect.begin()) - intersect.begin()) == 0) { //are neighbors with completely disjoint bags. highly artificial case, but need to prevent empty bags in niceTD, therefore add one vertex from smaller to bigger bag
+					//cout << "triggered empty bag prevention mechanism at node1 = " << *nodeit << " and node2 = " << neighbor << endl;
+					if (td[neighbor].bag.size() > td[*nodeit].bag.size()) {
+						td[*nodeit].bag.insert(lower_bound(td[*nodeit].bag.begin(), td[*nodeit].bag.end(), td[neighbor].bag[td[neighbor].bag.size() - 1]), td[neighbor].bag[td[neighbor].bag.size() - 1]);
+					}
+					else {
+						td[neighbor].bag.insert(lower_bound(td[neighbor].bag.begin(), td[neighbor].bag.end(), td[*nodeit].bag[td[*nodeit].bag.size() - 1]), td[*nodeit].bag[td[*nodeit].bag.size() - 1]);
+					}
+				}
+			}
+		}
+	}
 }
 
 
@@ -605,6 +651,7 @@ std::queue<size_t> Parser::split(TreeDecomposition& td, TreeDecomposition::verte
 void Parser::insertChainBetweenUnequalNodes(TreeDecomposition& td, TreeDecomposition::vertex_descriptor v, TreeDecomposition::vertex_descriptor w) {
 	vector<TreeDecomposition::vertex_descriptor> introduceMe;
 	vector<TreeDecomposition::vertex_descriptor> forgetMe;
+
 	for (int i = 0; i < td[v].bag.size(); i++) {
 		//if some vertex is not in w's bag, add it to introduceMe
 		bool isContained = false;

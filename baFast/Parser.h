@@ -11,6 +11,7 @@ public:
 	void fillAdjacencyMatrix(TreeDecomposition&, std::istream&, int width = 0);
 	
 private:
+	void removeRedundantNodes(TreeDecomposition&);
 	void makeNice(TreeDecomposition&);
 	std::queue<size_t> HOLLOWmakeNice(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
 	void insertChainBetweenUnequalNodes(TreeDecomposition&, TreeDecomposition::vertex_descriptor, TreeDecomposition::vertex_descriptor);
