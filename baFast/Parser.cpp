@@ -3,7 +3,7 @@
 #include <mutex>
 #include <float.h>
 
-#define THREADCOUNT 5
+#define THREADCOUNT 1
 
 using namespace std;
 
