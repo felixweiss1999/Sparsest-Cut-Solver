@@ -417,42 +417,42 @@ void Parser::traverseUpThread(TreeDecomposition& td, TreeDecomposition::vertex_d
 					uint64_t weight = 0;
 					uint64_t leftRep = s;
 					uint64_t a = 0;
-while (leftRep > 0) {
-	if (leftRep & 1) {
-		uint64_t rightRep = (~s) & (((uint64_t)1 << bagSize) - 1);
-		uint64_t b = 0;
-		while (rightRep > 0) {
-			if (rightRep & 1) {
-				weight += td[graph_bundle].adjacencyMatrix[td[node].bag[a] - 1][td[node].bag[b] - 1];
-			}
-			rightRep = rightRep >> 1;
-			b++;
-		}
-	}
-	leftRep = leftRep >> 1;
-	a++;
-}
+					while (leftRep > 0) {
+						if (leftRep & 1) {
+							uint64_t rightRep = (~s) & (((uint64_t)1 << bagSize) - 1);
+							uint64_t b = 0;
+							while (rightRep > 0) {
+								if (rightRep & 1) {
+									weight += td[graph_bundle].adjacencyMatrix[td[node].bag[a] - 1][td[node].bag[b] - 1];
+								}
+								rightRep = rightRep >> 1;
+								b++;
+							}
+						}
+						leftRep = leftRep >> 1;
+						a++;
+					}
 
 
-for (uint64_t i = 0; i < degOfFreedom; i++) {
-	uint64_t min = UINT64_MAX;
-	int j_lowerBound = i - degFreedomRight + 1;
-	if (j_lowerBound < 0)
-		j_lowerBound = 0;
-	int j_upperBound = degFreedomLeft - 1;
-	if (j_upperBound > i)
-		j_upperBound = i;
-	for (int j = j_lowerBound; j <= j_upperBound; j++) {
-		uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
-		if (candidate < min) {
-			min = candidate;
-			td[node].join_j[p] = j - j_lowerBound;
-		}
-	}
-	vals[p++] = min - weight;
-}
-leftBaseIndex += degFreedomLeft;
-rightBaseIndex += degFreedomRight;
+					for (uint64_t i = 0; i < degOfFreedom; i++) {
+						uint64_t min = UINT64_MAX;
+						int j_lowerBound = i - degFreedomRight + 1;
+						if (j_lowerBound < 0)
+							j_lowerBound = 0;
+						int j_upperBound = degFreedomLeft - 1;
+						if (j_upperBound > i)
+							j_upperBound = i;
+						for (int j = j_lowerBound; j <= j_upperBound; j++) {
+							uint64_t candidate = (uint64_t)td[leftChild].values[leftBaseIndex + j] + (uint64_t)td[rightChild].values[rightBaseIndex + i - j];
+							if (candidate < min) {
+								min = candidate;
+								td[node].join_j[p] = j - j_lowerBound;
+							}
+						}
+						vals[p++] = min - weight;
+					}
+					leftBaseIndex += degFreedomLeft;
+					rightBaseIndex += degFreedomRight;
 				}
 			}
 			else {//leaf
