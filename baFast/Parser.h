@@ -11,6 +11,7 @@ public:
 	void fillAdjacencyMatrix(TreeDecomposition&, std::istream&, int width = 0);
 	
 private:
+	void removeRedundantNodes(TreeDecomposition&);
 	void makeNice(TreeDecomposition&);
 	std::queue<size_t> HOLLOWmakeNice(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
 	void insertChainBetweenUnequalNodes(TreeDecomposition&, TreeDecomposition::vertex_descriptor, TreeDecomposition::vertex_descriptor);
@@ -20,17 +21,9 @@ private:
 	std::vector<size_t>& removeElementFromBag(std::vector<size_t>&, size_t);
 	std::queue<size_t> split(TreeDecomposition&, TreeDecomposition::vertex_descriptor, int);
 	void traverseUpThread(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
-	uint64_t binomial(int, int);
 	std::string tableOfNode(TreeDecomposition&, TreeDecomposition::vertex_descriptor);
-	uint64_t getIndexOfSubset(int*, int);
-	void perm2Indices(int*, uint64_t, int);
 	uint64_t calculateCutWeight(TreeDecomposition& td, TreeDecomposition::vertex_descriptor root);
 	void retraceCut(TreeDecomposition&, TreeDecomposition::vertex_descriptor, uint64_t);
-
-	void addUncontainedElementsToCut(std::vector<size_t>&, const std::vector<size_t>&);
-	std::vector<size_t> getSdash(const std::vector<size_t>&, uint64_t, int, int*);
-	void fillIndices(int*, int, int);
-	uint64_t getSubsetsBeforeKClass(uint64_t, int);
 
 	atomicQueue leafs;
 	std::vector<std::atomic_flag> joinWasVisited;
