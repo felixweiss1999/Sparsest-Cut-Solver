@@ -1,5 +1,5 @@
 # Sparsest-Cut-Solver
-Implementation of a Sparsest Cut Solver in C. For my Bachelor's Thesis 'Fast Hierarchical Clustering on Structured Data', 2022
+Implementation of a Sparsest Cut Solver in C++. For my Bachelor's Thesis 'Fast Hierarchical Clustering on Structured Data', 2022
 
 Implements Dasgupta's Heuristic introduced in:
 
